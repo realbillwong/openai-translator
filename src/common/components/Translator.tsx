@@ -70,7 +70,8 @@ import useResizeObserver from 'use-resize-observer'
 import _ from 'underscore'
 import { GlobalSuspense } from './GlobalSuspense'
 import { useLazyEffect } from '../usehooks'
-import LogoWithText, { type LogoWithTextRef } from './LogoWithText'
+// import LogoWithText, { type LogoWithTextRef } from './LogoWithText'
+import { type LogoWithTextRef } from './LogoWithText'
 import Toaster from './Toaster'
 import { readBinaryFile } from '@tauri-apps/plugin-fs'
 import { getCurrent } from '@tauri-apps/api/window'
@@ -175,7 +176,6 @@ const useStyles = createUseStyles({
                   'alignItems': 'center',
                   'padding': '8px 16px',
                   'borderBottom': `1px solid ${props.theme.colors.borderTransparent}`,
-                  'minWidth': '612px',
                   '-ms-user-select': 'none',
                   '-webkit-user-select': 'none',
                   'user-select': 'none',
@@ -1075,7 +1075,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             }
             let isStopped = false
             try {
-                // console.debug('translate', sourceLang, targetLang, text)
+                console.info('translate', sourceLang, targetLang, text)
                 await translate({
                     action,
                     signal,
@@ -1084,9 +1084,11 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                     detectFrom: sourceLang,
                     detectTo: targetLang,
                     onStatusCode: (statusCode) => {
+                        console.log('statu code:', statusCode)
                         setIsNotLogin(statusCode === 401 || statusCode === 403)
                     },
                     onMessage: async (message) => {
+                        console.log('mesage:', message)
                         if (!message.content) {
                             return
                         }
@@ -1099,6 +1101,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         })
                     },
                     onFinish: (reason) => {
+                        console.log('finish', reason)
                         afterTranslate(reason)
                         setTranslatedText((translatedText) => {
                             const result = translatedText
@@ -1107,12 +1110,14 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         })
                     },
                     onError: (error) => {
+                        console.error('Translate error:', error)
                         setActionStr('Error')
                         setErrorMessage(error)
                     },
                 })
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } catch (error: any) {
+                console.error('translate error: ', error)
                 // if error is a AbortError then ignore this error
                 if (error.name === 'AbortError') {
                     isStopped = true
@@ -1121,6 +1126,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 setActionStr('Error')
                 setErrorMessage((error as Error).toString())
             } finally {
+                console.error('finally x')
                 if (!isStopped) {
                     stopLoading()
                     isStopped = true
@@ -1148,7 +1154,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             return
         }
         if (settings.provider === 'OpenAI' && !settings.apiKeys) {
-            setShowSettings(true)
+            setShowSettings(false)
             return
         }
         if (settings.provider === 'Azure' && !settings.azureAPIKeys) {
@@ -1321,7 +1327,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         editableTextSpeakingIconRef.current?.click()
     }, [selectedWord, settings?.readSelectedWordsFromInputElementsText])
 
-    const enableVocabulary = !isUserscript()
+    const enableVocabulary = false && !isUserscript()
 
     const handleStopGenerating = () => {
         translateControllerRef.current?.abort('stop')
@@ -1497,7 +1503,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             style={{
                 minHeight: vocabularyType !== 'hide' ? '600px' : undefined,
                 background: theme.colors.backgroundPrimary,
-                paddingBottom: showSettings ? '0px' : '42px',
             }}
         >
             {showSettings && (
@@ -1524,7 +1529,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                             boxShadow: isDesktopApp() && !isScrolledToTop ? theme.lighting.shadow600 : undefined,
                         }}
                     >
-                        {showLogo && <LogoWithText ref={logoWithTextRef} />}
+                        {/* {showLogo && <LogoWithText ref={logoWithTextRef} />} */}
                         <div className={styles.popupCardHeaderActionsContainer} ref={languagesSelectorRef}>
                             <div className={styles.from}>
                                 <Select
@@ -1896,18 +1901,20 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                             </Dropzone>
                             <div className={styles.actionButtonsContainer}>
                                 <>
-                                    <Tooltip content={t('Upload an image for OCR translation')} placement='bottom'>
-                                        <div className={styles.actionButton}>
-                                            <Dropzone onDrop={onDrop}>
-                                                {({ getRootProps, getInputProps }) => (
-                                                    <div {...getRootProps()} className={styles.actionButton}>
-                                                        <input {...getInputProps({ multiple: false })} />
-                                                        <BsTextareaT size={15} />
-                                                    </div>
-                                                )}
-                                            </Dropzone>
-                                        </div>
-                                    </Tooltip>
+                                    {false && (
+                                        <Tooltip content={t('Upload an image for OCR translation')} placement='bottom'>
+                                            <div className={styles.actionButton}>
+                                                <Dropzone onDrop={onDrop}>
+                                                    {({ getRootProps, getInputProps }) => (
+                                                        <div {...getRootProps()} className={styles.actionButton}>
+                                                            <input {...getInputProps({ multiple: false })} />
+                                                            <BsTextareaT size={15} />
+                                                        </div>
+                                                    )}
+                                                </Dropzone>
+                                            </div>
+                                        </Tooltip>
+                                    )}
                                     {enableVocabulary && (
                                         <StatefulTooltip
                                             content={

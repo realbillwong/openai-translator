@@ -409,12 +409,15 @@ If you understand, say "yes", and then we will begin.`
             await query.onMessage({ ...message, isWordMode })
         },
         onFinished: (reason) => {
+            console.info('send message finished', reason)
             query.onFinish(reason)
         },
         onError: (error) => {
+            console.error('send message error', error)
             query.onError(error)
         },
         onStatusCode: (statusCode) => {
+            console.info('send message status code', statusCode)
             query.onStatusCode?.(statusCode)
         },
     })

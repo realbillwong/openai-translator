@@ -26,12 +26,12 @@ const useStyles = createUseStyles({
         boxShadow: '0 0 8px rgba(0,0,0,.3)',
         minWidth: `${popupCardMinWidth}px`,
         maxWidth: `${popupCardMaxWidth}px`,
+        width: `${popupCardMaxWidth}px`,
         lineHeight: '1.6',
         fontSize: '13px',
         color: '#333',
         font: '14px/1.6 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,Arial,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji',
         minHeight: `${popupCardMinHeight}px`,
-        width: 'max-content',
     },
 })
 

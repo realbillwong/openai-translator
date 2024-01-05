@@ -1,6 +1,6 @@
 import { forwardRef, useImperativeHandle, useRef } from 'react'
 import { createUseStyles } from 'react-jss'
-import { IThemedStyleProps } from '../types'
+import { IThemedStyleProps, IUserInfo } from '../types'
 import { useTheme } from '../hooks/useTheme'
 import { getAssetUrl } from '../utils'
 import icon from '../assets/images/icon.png'
@@ -29,6 +29,22 @@ const useStyles = createUseStyles({
         cursor: 'unset',
         userSelect: 'none',
     }),
+    login: {
+        color: 'red',
+        fontSize: '12px',
+        fontWeight: 600,
+        cursor: 'pointer',
+        userSelect: 'none',
+        background: 'none',
+        border: 'none',
+    },
+    userinfo: {
+        color: '#999',
+        fontSize: '12px',
+        fontWeight: 600,
+        cursor: 'unset',
+        userSelect: 'none',
+    },
 })
 
 export type LogoWithTextRef = {
@@ -36,7 +52,15 @@ export type LogoWithTextRef = {
     showText: () => void
 }
 
-const LogoWithText = forwardRef<LogoWithTextRef, unknown>(function LogoWithText(_props, ref) {
+interface ILogoWithTextProps {
+    userinfo?: IUserInfo
+    login: () => void
+}
+
+const LogoWithText = forwardRef<LogoWithTextRef, ILogoWithTextProps>(function LogoWithText(
+    props: ILogoWithTextProps,
+    ref
+) {
     const { theme, themeType } = useTheme()
     const styles = useStyles({ theme, themeType })
 
@@ -61,12 +85,25 @@ const LogoWithText = forwardRef<LogoWithTextRef, unknown>(function LogoWithText(
         []
     )
 
+    const handleClickLogin = (e: React.MouseEvent<HTMLButtonElement>) => {
+        e.preventDefault()
+        e.stopPropagation()
+        props.login()
+    }
+
     return (
         <div data-tauri-drag-region className={styles.iconContainer}>
             <img data-tauri-drag-region className={styles.icon} src={getAssetUrl(icon)} />
             <div data-tauri-drag-region className={styles.iconText} ref={logoTextRef}>
-                OpenAI Translator
+                GPT Edit 翻译
             </div>
+            {props.userinfo?.email ? (
+                <span className={styles.userinfo}>({props.userinfo.email})</span>
+            ) : (
+                <button className={styles.login} onClick={handleClickLogin}>
+                    (未登录)
+                </button>
+            )}
         </div>
     )
 })

@@ -411,30 +411,34 @@ export async function fetchSSE(input: string, options: FetchSSEOptions) {
         })
     }
 
-    const resp = await fetcher(input, fetchOptions)
-    onStatusCode?.(resp.status)
-    if (resp.status !== 200) {
-        onError(await resp.json())
-        return
-    }
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const reader = resp.body!.getReader()
     try {
-        // eslint-disable-next-line no-constant-condition
-        while (true) {
-            const { done, value } = await reader.read()
-            if (done) {
-                break
-            }
-            const str = new TextDecoder().decode(value)
-            if (useJSONParser) {
-                jsonParser({ value: str, done })
-            } else {
-                sseParser.feed(str)
-            }
+        const resp = await fetcher(input, fetchOptions)
+        onStatusCode?.(resp.status)
+        if (resp.status !== 200) {
+            onError(await resp.json())
+            return
         }
-    } finally {
-        reader.releaseLock()
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        const reader = resp.body!.getReader()
+        try {
+            // eslint-disable-next-line no-constant-condition
+            while (true) {
+                const { done, value } = await reader.read()
+                if (done) {
+                    break
+                }
+                const str = new TextDecoder().decode(value)
+                if (useJSONParser) {
+                    jsonParser({ value: str, done })
+                } else {
+                    sseParser.feed(str)
+                }
+            }
+        } finally {
+            reader.releaseLock()
+        }
+    } catch (e) {
+        console.error('fetcher', e)
     }
 }
 
@@ -443,4 +447,21 @@ export function getAssetUrl(asset: string) {
         return asset
     }
     return new URL(asset, import.meta.url).href
+}
+
+export function getUserInfo() {
+    if (isElectron()) {
+        return (window as any).electron.getUserinfo()
+    }
+    if (isTauri()) {
+        return (window as any).tauri.getUserinfo()
+    }
+    return new Promise((resolve) => {
+        chrome.storage.local.get(['userInfo', 'tokens'], (result) => {
+            resolve({
+                ...result.userInfo,
+                ...result.tokens,
+            })
+        })
+    })
 }

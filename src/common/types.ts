@@ -98,3 +98,10 @@ export interface ISettings {
     languageDetectionEngine?: LanguageDetectionEngine
     autoHideWindowWhenOutOfFocus?: boolean
 }
+
+export interface IUserInfo {
+    email: string
+    name: string
+    accessToken: string
+    refreshToken: string
+}

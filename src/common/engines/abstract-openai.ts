@@ -1,5 +1,5 @@
 /* eslint-disable camelcase */
-import { fetchSSE } from '../utils'
+import { fetchSSE, getUserInfo } from '../utils'
 import { IEngine, IMessageRequest, IModel } from './interfaces'
 
 export abstract class AbstractOpenAI implements IEngine {
@@ -28,12 +28,14 @@ export abstract class AbstractOpenAI implements IEngine {
     abstract getAPIURLPath(): Promise<string>
 
     async getHeaders(): Promise<Record<string, string>> {
-        const apiKey = await this.getAPIKey()
+        const { accessToken } = await getUserInfo()
+        console.log('access token', accessToken)
         return {
             'User-Agent':
                 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) chatall/1.29.40 Chrome/114.0.5735.134 Safari/537.36',
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
+            // 'Authorization': `Bearer ${accessToken}`,
+            'Authorization': `Bearer sk-7okWrvXK2iRpXRuT00C09b8f22214475A0A3E7C119D328C8`,
         }
     }
 
@@ -43,7 +45,8 @@ export abstract class AbstractOpenAI implements IEngine {
 
     async sendMessage(req: IMessageRequest): Promise<void> {
         const model = await this.getAPIModel()
-        const url = `${await this.getAPIURL()}${await this.getAPIURLPath()}`
+        // const url = `${await this.getAPIURL()}${await this.getAPIURLPath()}`
+        const url = 'https://kkkc.net/v1/chat/completions'
         const headers = await this.getHeaders()
         const isChatAPI = await this.isChatAPI()
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -84,6 +87,9 @@ export abstract class AbstractOpenAI implements IEngine {
             body['messages'] = messages
         }
         let finished = false // finished can be called twice because event.data is 1. "finish_reason":"stop"; 2. [DONE]
+        console.log(url)
+        console.log(headers)
+        console.log(JSON.stringify(body))
         await fetchSSE(url, {
             method: 'POST',
             headers,
@@ -132,6 +138,7 @@ export abstract class AbstractOpenAI implements IEngine {
                 }
             },
             onError: (err) => {
+                console.error('Fetch SSE:', err)
                 if (err instanceof Error) {
                     req.onError(err.message)
                     return

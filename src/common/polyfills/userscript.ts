@@ -91,6 +91,7 @@ export async function userscriptFetch(url: string, { body, headers, method, sign
             method: method as any,
             responseType: (isSupportStreaming ? 'stream' : 'text') as any,
             onreadystatechange: async (r) => {
+                console.log('ready state change', r)
                 Object.assign(r, { status: r.status })
                 if (isSupportStreaming) {
                     if (r.readyState === XMLHttpRequest.HEADERS_RECEIVED) {

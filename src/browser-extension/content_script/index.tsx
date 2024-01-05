@@ -4,6 +4,7 @@ import React from 'react'
 import icon from '../../common/assets/images/icon.png'
 import { popupCardID, popupCardOffset, popupThumbID, zIndex } from './consts'
 import { Translator } from '../../common/components/Translator'
+import { LoginForm } from '../../common/components/LoginForm'
 import { getContainer, queryPopupCardElement, queryPopupThumbElement } from './utils'
 import { create } from 'jss'
 import preset from 'jss-preset-default'
@@ -45,6 +46,10 @@ async function hidePopupThumb() {
         return
     }
     $popupThumb.style.visibility = 'hidden'
+}
+
+async function showLoginForm() {
+    console.log('show login form')
 }
 
 async function hidePopupCard() {
@@ -90,6 +95,8 @@ async function showPopupCard(reference: ReferenceElement, text: string, autoFocu
     }
 
     const settings = await utils.getSettings()
+    let userinfo = await utils.getUserInfo()
+
     let $popupCard = await queryPopupCardElement()
     if ($popupCard && settings.pinned) {
         setExternalOriginalText(text)
@@ -106,6 +113,10 @@ async function showPopupCard(reference: ReferenceElement, text: string, autoFocu
         ...preset(),
         insertionPoint: $popupCard.parentElement ?? undefined,
     })
+
+    const handleLoginSucceed = async () => {
+        userinfo = await utils.getUserInfo()
+    }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ;(window as any).__IS_OT_BROWSER_EXTENSION_CONTENT_SCRIPT__ = true
     const isUserscript = utils.isUserscript()
@@ -116,14 +127,25 @@ async function showPopupCard(reference: ReferenceElement, text: string, autoFocu
             <GlobalSuspense>
                 <JSS jss={jss} generateId={generateId} classNamePrefix='__yetone-openai-translator-jss-'>
                     <InnerContainer reference={reference}>
-                        <TitleBar pinned={settings.pinned} onClose={hidePopupCard} engine={engine} />
-                        <Translator
+                        <TitleBar
+                            userinfo={userinfo}
+                            pinned={settings.pinned}
+                            onClose={hidePopupCard}
                             engine={engine}
-                            autoFocus={autoFocus}
-                            showSettingsIcon
-                            defaultShowSettings={isUserscript}
-                            showLogo={false}
+                            onLogin={showLoginForm}
                         />
+                        {userinfo?.email ? (
+                            <Translator
+                                engine={engine}
+                                autoFocus={autoFocus}
+                                showSettings={false}
+                                showSettingsIcon={false}
+                                defaultShowSettings={isUserscript}
+                                showLogo={false}
+                            />
+                        ) : (
+                            <LoginForm engine={engine} onLogin={handleLoginSucceed} />
+                        )}
                     </InnerContainer>
                 </JSS>
             </GlobalSuspense>

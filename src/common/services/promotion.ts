@@ -36,6 +36,8 @@ export interface IPromotionResponse {
 }
 
 export async function fetchPromotions(): Promise<IPromotionResponse> {
+    return Promise.resolve({})
+
     const resp = await fetch(
         `https://raw.githubusercontent.com/yetone/openai-translator-configs/main/promotions.json?ts=${Date.now()}`,
         { cache: 'no-cache' }

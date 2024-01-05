@@ -4,11 +4,12 @@ import { useTranslation } from 'react-i18next'
 import { BaseProvider } from 'baseui-sd'
 import { Provider as StyletronProvider } from 'styletron-react'
 import { Client as Styletron } from 'styletron-engine-atomic'
-import { IThemedStyleProps } from '../../common/types'
+import { IThemedStyleProps, IUserInfo } from '../../common/types'
+import { IoSettingsOutline } from 'react-icons/io5'
 import { useTheme } from '../../common/hooks/useTheme'
 import { RxCross2, RxDrawingPin, RxDrawingPinFilled } from 'react-icons/rx'
 import LogoWithText from '../../common/components/LogoWithText'
-import { setSettings } from '../../common/utils'
+import { setSettings, isBrowserExtensionContentScript } from '../../common/utils'
 import { Tooltip } from '../../common/components/Tooltip'
 
 const useStyles = createUseStyles({
@@ -35,12 +36,14 @@ const useStyles = createUseStyles({
 })
 
 type TitleBarProps = {
+    userinfo?: IUserInfo
     pinned?: boolean
     engine: Styletron
     onClose: () => void
+    onLogin: () => void
 }
 
-export default function TitleBar({ pinned = false, onClose, engine }: TitleBarProps) {
+export default function TitleBar({ userinfo, pinned = false, onClose, engine, onLogin }: TitleBarProps) {
     const { theme, themeType } = useTheme()
     const { t } = useTranslation()
 
@@ -58,8 +61,31 @@ export default function TitleBar({ pinned = false, onClose, engine }: TitleBarPr
         <StyletronProvider value={engine}>
             <BaseProvider theme={theme}>
                 <div data-tauri-drag-region className={styles.container}>
-                    <LogoWithText />
+                    <LogoWithText userinfo={userinfo} login={onLogin} />
                     <div className={styles.actionsContainer}>
+                        <Tooltip content={t('Go to Settigns')} placement='bottom' onMouseEnterDelay={1000}>
+                            <div
+                                className={styles.actionIconContainer}
+                                data-testid='titlebar-close-btn'
+                                onClick={async (e) => {
+                                    e.stopPropagation()
+                                    e.preventDefault()
+                                    if (isBrowserExtensionContentScript()) {
+                                        const browser = (await import('webextension-polyfill')).default
+                                        await browser.runtime.sendMessage({
+                                            type: 'openOptionsPage',
+                                        })
+                                    }
+                                }}
+                            >
+                                <IoSettingsOutline
+                                    style={{
+                                        display: 'block',
+                                    }}
+                                    size={16}
+                                />
+                            </div>
+                        </Tooltip>
                         <Tooltip content={isPinned ? t('Unpin') : t('Pin')} placement='bottom' onMouseEnterDelay={1000}>
                             <div
                                 className={styles.actionIconContainer}

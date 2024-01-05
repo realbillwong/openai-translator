@@ -190,7 +190,7 @@ export function createForm<S extends {} = Store>({
                         style: {
                             flexShrink: 0,
                             padding: '0.25em 0',
-                            fontSize: '1.2em',
+                            fontSize: '1.125em',
                             fontWeight: '600',
                         },
                     },

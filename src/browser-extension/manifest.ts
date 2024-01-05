@@ -5,8 +5,8 @@ export function getManifest(browser: 'firefox' | 'chromium') {
     const manifest: chrome.runtime.Manifest = {
         manifest_version: 3,
 
-        name: 'OpenAI Translator',
-        description: `OpenAI-Translator is a browser extension that uses the ChatGPT API for translation.`,
+        name: 'GPT Edit 翻译',
+        description: `GPT Edit Translator is a browser extension that uses the ChatGPT API for translation.`,
         version: version,
 
         icons: {
@@ -23,7 +23,6 @@ export function getManifest(browser: 'firefox' | 'chromium') {
 
         action: {
             default_icon: 'icon.png',
-            default_popup: 'src/browser-extension/popup/index.html',
         },
 
         content_scripts: [
@@ -52,6 +51,8 @@ export function getManifest(browser: 'firefox' | 'chromium') {
         },
 
         host_permissions: [
+            'https://gpt4edit.com/',
+            'https://gptedit.cn/',
             'https://*.openai.com/',
             'https://*.openai.azure.com/',
             'https://*.ingest.sentry.io/',
@@ -71,7 +72,7 @@ export function getManifest(browser: 'firefox' | 'chromium') {
     if (browser === 'firefox') {
         manifest.browser_specific_settings = {
             gecko: {
-                id: 'openaitranslator@gmail.com',
+                id: 'hi@gptedit.cn',
             },
         }
         manifest.background = {
