@@ -54,7 +54,7 @@ pub fn get_config_content() -> Result<String, String> {
 pub fn get_config_content_by_app(app: &AppHandle) -> Result<String, String> {
     let app_config_dir = app
         .path()
-        .resolve("xyz.yetone.apps.openai-translator", BaseDirectory::Config)
+        .resolve("xyz.gptedit.apps.openai-translator", BaseDirectory::Config)
         .unwrap();
     if !app_config_dir.exists() {
         std::fs::create_dir_all(&app_config_dir).unwrap();

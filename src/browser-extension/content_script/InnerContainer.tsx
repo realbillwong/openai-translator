@@ -1,4 +1,5 @@
 import { computePosition, shift, flip, offset, type ReferenceElement, size } from '@floating-ui/dom'
+import { useTheme } from '../../common/hooks/useTheme'
 import { PropsWithChildren, useCallback, useEffect, useRef, useState } from 'react'
 import Draggable, { DraggableData, DraggableEvent } from 'react-draggable'
 import {
@@ -12,6 +13,7 @@ import {
     popupCardOffset,
     zIndex,
 } from './consts'
+import { IThemedStyleProps } from '../../common/types'
 import { createUseStyles } from 'react-jss'
 
 type Props = {
@@ -19,7 +21,7 @@ type Props = {
 } & PropsWithChildren
 
 const useStyles = createUseStyles({
-    container: {
+    container: ({ theme }: IThemedStyleProps) => ({
         position: 'fixed',
         zIndex,
         borderRadius: '4px',
@@ -32,11 +34,14 @@ const useStyles = createUseStyles({
         color: '#333',
         font: '14px/1.6 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,Arial,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji',
         minHeight: `${popupCardMinHeight}px`,
-    },
+        background: theme.colors.backgroundPrimary,
+    }),
 })
 
 export default function InnerContainer({ children, reference }: Props) {
-    const styles = useStyles()
+    const { theme, themeType } = useTheme()
+
+    const styles = useStyles({ theme, themeType })
 
     const draggedRef = useRef(false)
     const draggableRef = useRef<HTMLDivElement | null>(null)

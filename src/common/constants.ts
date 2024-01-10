@@ -1,6 +1,6 @@
 import { TranslateMode } from './translate'
 
-export const PREFIX = '__yetone-openai-translator'
+export const PREFIX = '__gptedit-translator'
 export const builtinActionModes: { name: string; mode: Exclude<TranslateMode, 'big-bang'>; icon: string }[] = [
     {
         name: 'Translate',

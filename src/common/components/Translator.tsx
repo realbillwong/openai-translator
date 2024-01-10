@@ -641,7 +641,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 return
             }
             const logoWithTextElem = logoWithTextRef.current
-            const activateActionElem = headerElem.querySelector('.__yetone-activate-action')
+            const activateActionElem = headerElem.querySelector('.__gptedit-activate-action')
             if (hasActivateAction && !activateActionElem) {
                 return
             }
@@ -1484,19 +1484,18 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         }
     }, [showSettings])
 
-    console.info(tokenCount)
-    console.info(showOCRProcessing)
-
     return (
         <div
             className={clsx(styles.popupCard, {
-                'yetone-dark': themeType === 'dark',
+                'gptedit-dark': themeType === 'dark',
             })}
             ref={containerRef}
             style={{
                 minHeight: vocabularyType !== 'hide' ? '600px' : undefined,
                 background: theme.colors.backgroundPrimary,
             }}
+            data-token={tokenCount}
+            data-ocr-processing={showOCRProcessing}
         >
             {showSettings && (
                 <InnerSettings
@@ -1611,7 +1610,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                             kind={action.id === activateAction?.id ? 'primary' : 'secondary'}
                                             className={
                                                 action.id === activateAction?.id
-                                                    ? '__yetone-activate-action'
+                                                    ? '__gptedit-activate-action'
                                                     : undefined
                                             }
                                             overrides={{

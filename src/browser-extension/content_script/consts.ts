@@ -1,7 +1,7 @@
 export const zIndex = '2147483647'
-export const popupThumbID = '__yetone-openai-translator-popup-thumb'
-export const popupCardID = '__yetone-openai-translator-popup-card'
-export const containerID = '__yetone-openai-translator'
+export const popupThumbID = '__gptedit-translator-popup-thumb'
+export const popupCardID = '__gptedit-translator-popup-card'
+export const containerID = '__gptedit-translator'
 export const popupCardMinWidth = 220
 export const popupCardMinHeight = 220
 export const popupCardMinHeightAfterTranslation = 500
@@ -9,4 +9,4 @@ export const popupCardMaxWidth = 500
 export const documentPadding = 10
 export const popupCardOffset = 7
 export const dragRegionSelector = '[data-tauri-drag-region]'
-export const popupCardInnerContainerId = '__yetone-openai-translator-popup-card-inner-container'
+export const popupCardInnerContainerId = '__gptedit-translator-popup-card-inner-container'

@@ -144,7 +144,7 @@
         "webextension-polyfill": "^0.10.0"
     },
     "build": {
-        "appId": "xyz.yetone.apps",
+        "appId": "xyz.gptedit.apps",
         "productName": "OpenAI Translator",
         "extraMetadata": {
             "name": "openai-translator",

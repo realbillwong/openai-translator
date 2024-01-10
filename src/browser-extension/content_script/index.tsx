@@ -115,7 +115,7 @@ async function showPopupCard(reference: ReferenceElement, text: string, autoFocu
     root.render(
         <React.StrictMode>
             <GlobalSuspense>
-                <JSS jss={jss} generateId={generateId} classNamePrefix='__yetone-openai-translator-jss-'>
+                <JSS jss={jss} generateId={generateId} classNamePrefix='__gptedit-translator-jss-'>
                     <InnerContainer reference={reference}>
                         <MainContainer
                             engine={engine}

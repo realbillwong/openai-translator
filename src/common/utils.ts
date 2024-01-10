@@ -26,7 +26,7 @@ export const defaultTargetLanguage = 'zh-Hans'
 export const defaultWritingTargetLanguage = 'en'
 export const defaultSelectInputElementsText = true
 export const defaultReadSelectedWordsFromInputElementsText = false
-export const defaulti18n = 'en'
+export const defaulti18n = 'zh-Hans'
 
 export async function getApiKey(): Promise<string> {
     const settings = await getSettings()
@@ -428,8 +428,6 @@ export async function fetchSSE(input: string, options: FetchSSEOptions) {
         const unauth = resp.data.includes('401') && resp.data.includes('Unauthorized')
         if (unauth) {
             // refresh token and retry
-            console.log('refresh token and retry')
-
             const { tokens } = await browser.storage.local.get('tokens')
             const newTokens = await gptEditService.refreshToken(tokens.refreshToken)
 

@@ -1,4 +1,4 @@
-.yetone-hit-container {
+.gptedit-hit-container {
     display: inline-block;
     position: relative;
     overflow: hidden !important;
@@ -6,11 +6,11 @@
     width: 100% !important;
 }
 
-.yetone-hit-container textarea {
+.gptedit-hit-container textarea {
     display: block;
 }
 
-.yetone-hit-backdrop {
+.gptedit-hit-backdrop {
     position: absolute !important;
     top: 0 !important;
     right: -99px !important;
@@ -21,7 +21,7 @@
     overflow-y: auto !important;
 }
 
-.yetone-hit-highlights {
+.gptedit-hit-highlights {
     width: auto !important;
     height: auto !important;
     border-color: transparent !important;
@@ -31,7 +31,7 @@
     overflow: hidden !important;
 }
 
-.yetone-hit-input {
+.gptedit-hit-input {
     display: block !important;
     position: relative !important;
     margin: 0;
@@ -42,21 +42,21 @@
     overflow-y: auto !important;
 }
 
-.yetone-hit-content {
+.gptedit-hit-content {
     padding: 4px 8px;
     background: none transparent !important;
 }
 
-.yetone-hit-content mark {
+.gptedit-hit-content mark {
     padding: 1px 2px !important;
     margin-left: -2px !important;
     margin-top: 1px !important;
     color: transparent !important;
     border-radius: 0.2rem;
-    background-color: #F8C3CD !important;
+    background-color: #f8c3cd !important;
 }
 
-.yetone-dark .yetone-hit-content mark {
+.gptedit-dark .gptedit-hit-content mark {
     color: rgb(203, 203, 203);
-    background-color: #B5495B !important;
+    background-color: #b5495b !important;
 }

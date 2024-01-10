@@ -1,6 +1,6 @@
 {
     "name": "OpenAI Translator",
-    "identifier": "xyz.yetone.apps.openai-translator.clip-extensions.snipdo",
+    "identifier": "xyz.gptedit.apps.openai-translator.clip-extensions.snipdo",
     "icon": "icon.png",
     "actions": [
         {

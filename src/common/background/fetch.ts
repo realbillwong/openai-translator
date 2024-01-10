@@ -54,7 +54,6 @@ export async function backgroundFetch(input: string, options: RequestInit) {
                 start(controller) {
                     port.onMessage.addListener((msg: BackgroundFetchResponseMessage) => {
                         const { data, error, ...restResp } = msg
-                        console.log('msg', msg)
                         if (error) {
                             const e = new Error()
                             e.message = error.message
