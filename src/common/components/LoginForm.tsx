@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next'
 import { createUseStyles } from 'react-jss'
-import browser from 'webextension-polyfill'
 import { createForm } from './Form'
 import { useTheme } from '../hooks/useTheme'
 import { useSettings } from '../hooks/useSettings'
@@ -41,6 +40,7 @@ export function LoginForm({ engine, onLogin }: ILoginFormProps) {
             const tokens = await gptEditService.login(values)
             const userInfo = await gptEditService.getUser(tokens.accessToken)
 
+            const browser = (await import('webextension-polyfill')).default
             browser.storage.local.set({
                 tokens,
                 userInfo,

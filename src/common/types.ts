@@ -5,7 +5,7 @@ import { Provider } from './engines'
 import { LangCode } from './lang'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-interface ISync {
+export interface ISync {
     get(keys: string[]): Promise<Record<string, any>>
     set(items: Record<string, any>): Promise<void>
 }

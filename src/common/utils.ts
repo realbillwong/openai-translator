@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import browser from 'webextension-polyfill'
 import { createParser } from 'eventsource-parser'
-import { IBrowser, ISettings } from './types'
+import { IBrowser, ISettings, ISync } from './types'
 import { getUniversalFetch } from './universal-fetch'
 import { v4 as uuidv4 } from 'uuid'
 import { invoke } from '@tauri-apps/api/primitives'
@@ -428,11 +427,12 @@ export async function fetchSSE(input: string, options: FetchSSEOptions) {
         const unauth = resp.data.includes('401') && resp.data.includes('Unauthorized')
         if (unauth) {
             // refresh token and retry
-            const { tokens } = await browser.storage.local.get('tokens')
+            const browser = await getBrowser()
+            const { tokens } = await browser.storage.sync.get(['tokens'])
             const newTokens = await gptEditService.refreshToken(tokens.refreshToken)
 
             if (newTokens) {
-                await browser.storage.local.set({ tokens: newTokens })
+                await browser.storage.sync.set({ tokens: newTokens })
                 fetchSSE(input, {
                     ...options,
                     headers: {
@@ -482,8 +482,16 @@ export async function getUserInfo() {
         return (window as any).tauri.getUserinfo()
     }
 
-    const { userInfo } = await browser.storage.local.get('userInfo')
-    const { tokens } = await browser.storage.local.get('tokens')
+    interface INewBrowser extends IBrowser {
+        storage: {
+            local: ISync
+            sync: ISync
+        }
+    }
+
+    const browser = (await getBrowser()) as unknown as INewBrowser
+    const { userInfo } = await browser.storage.local.get(['userInfo'])
+    const { tokens } = await browser.storage.local.get(['tokens'])
 
     return {
         ...tokens,
