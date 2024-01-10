@@ -32,7 +32,8 @@ export function Markdown({ children, linkTarget }: IMarkdownProps) {
                                 style={{
                                     backgroundColor: theme.colors.backgroundSecondary,
                                     color: theme.colors.contentSecondary,
-                                    padding: '0.2rem',
+                                    padding: '0.2rem 0.3rem',
+                                    margin: '0 0.3rem',
                                     borderRadius: '0.2rem',
                                 }}
                             >

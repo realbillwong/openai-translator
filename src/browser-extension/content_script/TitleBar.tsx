@@ -40,10 +40,9 @@ type TitleBarProps = {
     pinned?: boolean
     engine: Styletron
     onClose: () => void
-    onLogin: () => void
 }
 
-export default function TitleBar({ userinfo, pinned = false, onClose, engine, onLogin }: TitleBarProps) {
+export default function TitleBar({ userinfo, pinned = false, onClose, engine }: TitleBarProps) {
     const { theme, themeType } = useTheme()
     const { t } = useTranslation()
 
@@ -61,9 +60,9 @@ export default function TitleBar({ userinfo, pinned = false, onClose, engine, on
         <StyletronProvider value={engine}>
             <BaseProvider theme={theme}>
                 <div data-tauri-drag-region className={styles.container}>
-                    <LogoWithText userinfo={userinfo} login={onLogin} />
+                    <LogoWithText userinfo={userinfo} />
                     <div className={styles.actionsContainer}>
-                        <Tooltip content={t('Go to Settigns')} placement='bottom' onMouseEnterDelay={1000}>
+                        <Tooltip content={t('Go to Settings')} placement='bottom' onMouseEnterDelay={1000}>
                             <div
                                 className={styles.actionIconContainer}
                                 data-testid='titlebar-close-btn'

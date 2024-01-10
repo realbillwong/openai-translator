@@ -101,7 +101,7 @@ export interface ISettings {
 
 export interface IUserInfo {
     email: string
-    name: string
+    username: string
     accessToken: string
     refreshToken: string
 }

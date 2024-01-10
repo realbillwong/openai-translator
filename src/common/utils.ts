@@ -1,10 +1,16 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import browser from 'webextension-polyfill'
 import { createParser } from 'eventsource-parser'
 import { IBrowser, ISettings } from './types'
 import { getUniversalFetch } from './universal-fetch'
 import { v4 as uuidv4 } from 'uuid'
 import { invoke } from '@tauri-apps/api/primitives'
 import { listen, Event, emit } from '@tauri-apps/api/event'
+import { gptEditService } from './internal-services/gptedit'
+
+interface ResponseWithData extends Response {
+    data: string
+}
 
 export const defaultAPIURL = 'https://api.openai.com'
 export const defaultAPIURLPath = '/v1/chat/completions'
@@ -412,12 +418,33 @@ export async function fetchSSE(input: string, options: FetchSSEOptions) {
     }
 
     try {
-        const resp = await fetcher(input, fetchOptions)
+        const resp = (await fetcher(input, fetchOptions)) as unknown as ResponseWithData
         onStatusCode?.(resp.status)
         if (resp.status !== 200) {
             onError(await resp.json())
             return
         }
+
+        const unauth = resp.data.includes('401') && resp.data.includes('Unauthorized')
+        if (unauth) {
+            // refresh token and retry
+            console.log('refresh token and retry')
+
+            const { tokens } = await browser.storage.local.get('tokens')
+            const newTokens = await gptEditService.refreshToken(tokens.refreshToken)
+
+            if (newTokens) {
+                await browser.storage.local.set({ tokens: newTokens })
+                fetchSSE(input, {
+                    ...options,
+                    headers: {
+                        ...options.headers,
+                        Authorization: `Bearer ${newTokens.accessToken}`,
+                    },
+                })
+            }
+        }
+
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         const reader = resp.body!.getReader()
         try {
@@ -449,19 +476,19 @@ export function getAssetUrl(asset: string) {
     return new URL(asset, import.meta.url).href
 }
 
-export function getUserInfo() {
+export async function getUserInfo() {
     if (isElectron()) {
         return (window as any).electron.getUserinfo()
     }
     if (isTauri()) {
         return (window as any).tauri.getUserinfo()
     }
-    return new Promise((resolve) => {
-        chrome.storage.local.get(['userInfo', 'tokens'], (result) => {
-            resolve({
-                ...result.userInfo,
-                ...result.tokens,
-            })
-        })
-    })
+
+    const { userInfo } = await browser.storage.local.get('userInfo')
+    const { tokens } = await browser.storage.local.get('tokens')
+
+    return {
+        ...tokens,
+        ...userInfo,
+    }
 }

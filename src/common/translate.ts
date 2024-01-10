@@ -255,8 +255,8 @@ export async function translate(query: TranslateQuery) {
                     // 当用户的默认语言为中文时，查询中文词组（不超过5个字），展示多种翻译结果，并阐述适用语境。
                     rolePrompt = codeBlock`
                     ${oneLineTrim`
-                    你是一个翻译引擎，
-                    请将给到的文本翻译成${targetLangName}。
+                    你是一个资深翻译专家，精通多国语言，擅长学术翻译，
+                    请将给到的文本意译成${targetLangName}。
                     请列出3种（如果有）最常用翻译结果：单词或短语，
                     并列出对应的适用语境（用中文阐述）、音标或转写、词性、双语示例。
                     按照下面格式用中文阐述：`}
@@ -274,7 +274,7 @@ export async function translate(query: TranslateQuery) {
                         // 单词模式，可以更详细的翻译结果，包括：音标、词性、含义、双语示例。
                         rolePrompt = codeBlock`
                         ${oneLineTrim`
-                        你是一个翻译引擎，请翻译给出的文本，只需要翻译不需要解释。
+                        你是一个资深翻译专家，精通多国语言，擅长学术翻译。请对给出的文本进行意译，只需要翻译不需要解释。
                         当且仅当文本只有一个单词时，
                         请给出单词原始形态（如果有）、
                         单词的语种、
@@ -409,15 +409,12 @@ If you understand, say "yes", and then we will begin.`
             await query.onMessage({ ...message, isWordMode })
         },
         onFinished: (reason) => {
-            console.info('send message finished', reason)
             query.onFinish(reason)
         },
         onError: (error) => {
-            console.error('send message error', error)
             query.onError(error)
         },
         onStatusCode: (statusCode) => {
-            console.info('send message status code', statusCode)
             query.onStatusCode?.(statusCode)
         },
     })

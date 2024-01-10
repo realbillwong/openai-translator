@@ -54,7 +54,6 @@ export type LogoWithTextRef = {
 
 interface ILogoWithTextProps {
     userinfo?: IUserInfo
-    login: () => void
 }
 
 const LogoWithText = forwardRef<LogoWithTextRef, ILogoWithTextProps>(function LogoWithText(
@@ -85,12 +84,6 @@ const LogoWithText = forwardRef<LogoWithTextRef, ILogoWithTextProps>(function Lo
         []
     )
 
-    const handleClickLogin = (e: React.MouseEvent<HTMLButtonElement>) => {
-        e.preventDefault()
-        e.stopPropagation()
-        props.login()
-    }
-
     return (
         <div data-tauri-drag-region className={styles.iconContainer}>
             <img data-tauri-drag-region className={styles.icon} src={getAssetUrl(icon)} />
@@ -100,9 +93,7 @@ const LogoWithText = forwardRef<LogoWithTextRef, ILogoWithTextProps>(function Lo
             {props.userinfo?.email ? (
                 <span className={styles.userinfo}>({props.userinfo.email})</span>
             ) : (
-                <button className={styles.login} onClick={handleClickLogin}>
-                    (未登录)
-                </button>
+                <span className={styles.login}>(未登录)</span>
             )}
         </div>
     )

@@ -6,7 +6,7 @@ import { vocabularyInternalService } from '../../common/internal-services/vocabu
 import { actionInternalService } from '../../common/internal-services/action'
 import { optionsPageHeaderPromotionIDKey, optionsPageOpenaiAPIKeyPromotionIDKey } from '../common'
 
-chrome.action.onClicked.addListener(async function () {
+browser.action.onClicked.addListener(async function () {
     chrome.tabs.create({
         url: 'https://gpt4edit.com/extension?utm_source=chrome_extension&utm_medium=popup&utm_campaign=chrome_extension',
     })

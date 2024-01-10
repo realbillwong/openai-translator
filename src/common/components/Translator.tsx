@@ -27,7 +27,6 @@ import {
     exportToCsv,
     isDesktopApp,
     isTauri,
-    getAssetUrl,
     isUserscript,
     setSettings,
     isBrowserExtensionContentScript,
@@ -38,8 +37,6 @@ import Dropzone from 'react-dropzone'
 import { RecognizeResult, createWorker } from 'tesseract.js'
 import { BsTextareaT } from 'react-icons/bs'
 import { FcIdea } from 'react-icons/fc'
-import rocket from '../assets/images/rocket.gif'
-import partyPopper from '../assets/images/party-popper.gif'
 import { listen, Event } from '@tauri-apps/api/event'
 import IpLocationNotification from '../components/IpLocationNotification'
 import { HighlightInTextarea } from '../highlight-in-textarea'
@@ -942,7 +939,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 parseInt(containerPaddingTop) +
                 parseInt(containerPaddingBottom)
 
-            return maxHeight - headerHeight - editorHeight - actionButtonsHeight - paddingVertical
+            return maxHeight - headerHeight - editorHeight - actionButtonsHeight - paddingVertical - 15
         }
 
         const resizeHandle: ResizeObserverCallback = _.debounce(() => {
@@ -1075,7 +1072,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             }
             let isStopped = false
             try {
-                console.info('translate', sourceLang, targetLang, text)
                 await translate({
                     action,
                     signal,
@@ -1084,11 +1080,9 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                     detectFrom: sourceLang,
                     detectTo: targetLang,
                     onStatusCode: (statusCode) => {
-                        console.log('statu code:', statusCode)
                         setIsNotLogin(statusCode === 401 || statusCode === 403)
                     },
                     onMessage: async (message) => {
-                        console.log('mesage:', message)
                         if (!message.content) {
                             return
                         }
@@ -1101,7 +1095,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         })
                     },
                     onFinish: (reason) => {
-                        console.log('finish', reason)
                         afterTranslate(reason)
                         setTranslatedText((translatedText) => {
                             const result = translatedText
@@ -1110,14 +1103,12 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         })
                     },
                     onError: (error) => {
-                        console.error('Translate error:', error)
                         setActionStr('Error')
                         setErrorMessage(error)
                     },
                 })
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } catch (error: any) {
-                console.error('translate error: ', error)
                 // if error is a AbortError then ignore this error
                 if (error.name === 'AbortError') {
                     isStopped = true
@@ -1126,7 +1117,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 setActionStr('Error')
                 setErrorMessage((error as Error).toString())
             } finally {
-                console.error('finally x')
                 if (!isStopped) {
                     stopLoading()
                     isStopped = true
@@ -1494,6 +1484,9 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         }
     }, [showSettings])
 
+    console.info(tokenCount)
+    console.info(showOCRProcessing)
+
     return (
         <div
             className={clsx(styles.popupCard, {
@@ -1757,148 +1750,99 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                             >
                                 {editableText}
                             </div>
-                            <Dropzone onDrop={onDrop} noClick={true}>
-                                {({ getRootProps, isDragActive }) => (
-                                    <div {...getRootProps()}>
-                                        {isDragActive ? (
-                                            <div className={styles.fileDragArea}> Drop file below </div>
-                                        ) : (
-                                            <div
-                                                className={styles.OCRStatusBar}
-                                                style={{
-                                                    display: 'flex',
-                                                    flexDirection: 'row',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    gap: 8,
-                                                    opacity: showOCRProcessing ? 1 : 0,
-                                                    marginBottom: showOCRProcessing ? 10 : 0,
-                                                    fontSize: '11px',
-                                                    height: showOCRProcessing ? 26 : 0,
-                                                    transition: 'all 0.3s linear',
-                                                    overflow: 'hidden',
-                                                }}
-                                            >
-                                                <div
-                                                    style={{
-                                                        fontSize: '12px',
-                                                    }}
-                                                >
-                                                    {isOCRProcessing ? 'OCR Processing...' : 'OCR Success'}
-                                                </div>
-                                                {showOCRProcessing && (
-                                                    <div>
-                                                        <img
-                                                            src={
-                                                                isOCRProcessing
-                                                                    ? getAssetUrl(rocket)
-                                                                    : getAssetUrl(partyPopper)
-                                                            }
-                                                            width='20'
-                                                        />{' '}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                        <Textarea
-                                            inputRef={editorRef}
-                                            autoFocus={autoFocus}
-                                            overrides={{
-                                                Root: {
-                                                    style: {
-                                                        fontSize: '15px !important',
-                                                        width: '100%',
-                                                        borderRadius: '0px',
-                                                    },
-                                                },
-                                                Input: {
-                                                    style: {
-                                                        fontSize: '15px !important',
-                                                        padding: '4px 8px',
-                                                        color:
-                                                            themeType === 'dark'
-                                                                ? theme.colors.contentSecondary
-                                                                : theme.colors.contentPrimary,
-                                                        fontFamily:
-                                                            currentTranslateMode === 'explain-code'
-                                                                ? 'monospace'
-                                                                : 'inherit',
-                                                        textalign: 'start',
-                                                    },
-                                                },
-                                            }}
-                                            value={editableText}
-                                            size='mini'
-                                            resize='vertical'
-                                            rows={
-                                                props.editorRows
-                                                    ? props.editorRows
-                                                    : Math.min(Math.max(editableText.split('\n').length, 3), 12)
-                                            }
-                                            onChange={(e) => setEditableText(e.target.value)}
-                                            onKeyDown={(e) => {
-                                                e.stopPropagation()
-                                            }}
-                                            onKeyUp={(e) => {
-                                                e.stopPropagation()
-                                            }}
-                                            onKeyPress={(e) => {
-                                                e.stopPropagation()
-                                                if (e.key === 'Enter' && !e.shiftKey) {
-                                                    handleSubmit(e)
-                                                }
-                                            }}
-                                        />
-                                        <div
-                                            style={{
-                                                display: 'flex',
-                                                flexDirection: 'row',
-                                                alignItems: 'center',
-                                                paddingTop: showSubmitButton() ? 8 : 0,
-                                                height: showSubmitButton() ? 28 : 0,
-                                                transition: 'all 0.3s linear',
-                                                overflow: 'hidden',
-                                            }}
-                                        >
-                                            <div className={styles.tokenCount}> {tokenCount} </div>
-                                            <div className={styles.flexPlaceHolder} />
-                                            <div
-                                                style={{
-                                                    display: 'flex',
-                                                    flexDirection: 'row',
-                                                    alignItems: 'center',
-                                                    gap: 10,
-                                                }}
-                                            >
-                                                <div className={styles.enterHint}>
-                                                    {'Press <Enter> to submit, <Shift+Enter> for a new line.'}
-                                                </div>
-                                                <Button
-                                                    size='mini'
-                                                    onClick={handleSubmit}
-                                                    startEnhancer={<IoIosRocket size={13} />}
-                                                    overrides={{
-                                                        StartEnhancer: {
-                                                            style: {
-                                                                marginRight: '6px',
-                                                            },
-                                                        },
-                                                        BaseButton: {
-                                                            style: {
-                                                                fontWeight: 'normal',
-                                                                fontSize: '12px',
-                                                                padding: '4px 8px',
-                                                            },
-                                                        },
-                                                    }}
-                                                >
-                                                    {t('Submit')}
-                                                </Button>
-                                            </div>
-                                        </div>
+                            <Textarea
+                                inputRef={editorRef}
+                                autoFocus={autoFocus}
+                                overrides={{
+                                    Root: {
+                                        style: {
+                                            fontSize: '15px !important',
+                                            width: '100%',
+                                            borderRadius: '0px',
+                                        },
+                                    },
+                                    Input: {
+                                        style: {
+                                            fontSize: '15px !important',
+                                            padding: '4px 8px',
+                                            color:
+                                                themeType === 'dark'
+                                                    ? theme.colors.contentSecondary
+                                                    : theme.colors.contentPrimary,
+                                            fontFamily:
+                                                currentTranslateMode === 'explain-code' ? 'monospace' : 'inherit',
+                                            textalign: 'start',
+                                        },
+                                    },
+                                }}
+                                value={editableText}
+                                size='mini'
+                                resize='vertical'
+                                rows={
+                                    props.editorRows
+                                        ? props.editorRows
+                                        : Math.min(Math.max(editableText.split('\n').length, 3), 12)
+                                }
+                                onChange={(e) => setEditableText(e.target.value)}
+                                onKeyDown={(e) => {
+                                    e.stopPropagation()
+                                }}
+                                onKeyUp={(e) => {
+                                    e.stopPropagation()
+                                }}
+                                onKeyPress={(e) => {
+                                    e.stopPropagation()
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                        handleSubmit(e)
+                                    }
+                                }}
+                            />
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    paddingTop: showSubmitButton() ? 8 : 0,
+                                    height: showSubmitButton() ? 28 : 0,
+                                    transition: 'all 0.3s linear',
+                                    overflow: 'hidden',
+                                }}
+                            >
+                                <div className={styles.flexPlaceHolder} />
+                                <div
+                                    style={{
+                                        display: 'flex',
+                                        flexDirection: 'row',
+                                        alignItems: 'center',
+                                        gap: 10,
+                                    }}
+                                >
+                                    <div className={styles.enterHint}>
+                                        {'Press <Enter> to submit, <Shift+Enter> for a new line.'}
                                     </div>
-                                )}
-                            </Dropzone>
+                                    <Button
+                                        size='mini'
+                                        onClick={handleSubmit}
+                                        startEnhancer={<IoIosRocket size={13} />}
+                                        overrides={{
+                                            StartEnhancer: {
+                                                style: {
+                                                    marginRight: '6px',
+                                                },
+                                            },
+                                            BaseButton: {
+                                                style: {
+                                                    fontWeight: 'normal',
+                                                    fontSize: '12px',
+                                                    padding: '4px 8px',
+                                                },
+                                            },
+                                        }}
+                                    >
+                                        {t('Submit')}
+                                    </Button>
+                                </div>
+                            </div>
                             <div className={styles.actionButtonsContainer}>
                                 <>
                                     {false && (
@@ -2082,7 +2026,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                                                         }}
                                                                     >
                                                                         {line}
-                                                                        {!isLoading && (
+                                                                        {false && !isLoading && (
                                                                             <StatefulTooltip
                                                                                 content={
                                                                                     isCollectedWord
@@ -2125,7 +2069,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                             <div ref={actionButtonsRef} className={styles.actionButtonsContainer}>
                                                 <div style={{ marginRight: 'auto' }} />
                                                 {!isLoading && (
-                                                    <Tooltip content={t('Retry')} placement='bottom'>
+                                                    <Tooltip content={t('Retry')} placement='top'>
                                                         <div
                                                             onClick={() => forceTranslate()}
                                                             className={styles.actionButton}
@@ -2134,7 +2078,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                                         </div>
                                                     </Tooltip>
                                                 )}
-                                                <Tooltip content={t('Speak')} placement='bottom'>
+                                                <Tooltip content={t('Speak')} placement='top'>
                                                     <div className={styles.actionButton}>
                                                         <SpeakerIcon
                                                             size={15}
@@ -2151,8 +2095,8 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                                         />
                                                     </div>
                                                 </Tooltip>
-                                                {isWordMode && (
-                                                    <Tooltip content={t('Auto collect')} placement='bottom'>
+                                                {false && isWordMode && (
+                                                    <Tooltip content={t('Auto collect')} placement='top'>
                                                         <div
                                                             className={styles.actionButton}
                                                             onClick={() => {
@@ -2167,7 +2111,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                                         </div>
                                                     </Tooltip>
                                                 )}
-                                                <Tooltip content={t('Copy to clipboard')} placement='bottom'>
+                                                <Tooltip content={t('Copy to clipboard')} placement='top'>
                                                     <div className={styles.actionButton}>
                                                         <CopyButton text={translatedText} styles={styles}></CopyButton>
                                                     </div>

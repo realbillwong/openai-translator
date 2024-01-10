@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { createUseStyles } from 'react-jss'
+import browser from 'webextension-polyfill'
 import { createForm } from './Form'
 import { useTheme } from '../hooks/useTheme'
 import { useSettings } from '../hooks/useSettings'
@@ -10,7 +11,7 @@ import { BaseProvider } from 'baseui-sd'
 import { Button as BaseButton } from 'baseui-sd/button'
 import { useCallback, useState, useEffect } from 'react'
 import { gptEditService, ILogin } from '../internal-services/gptedit'
-import { IThemedStyleProps } from '../types'
+import { IThemedStyleProps, IUserInfo } from '../types'
 
 const { Form, FormItem } = createForm<ILogin>()
 
@@ -23,7 +24,7 @@ const useStyles = createUseStyles({
 
 export interface ILoginFormProps {
     engine: Styletron
-    onLogin: () => void
+    onLogin: (info: IUserInfo) => void
 }
 
 export function LoginForm({ engine, onLogin }: ILoginFormProps) {
@@ -38,16 +39,17 @@ export function LoginForm({ engine, onLogin }: ILoginFormProps) {
         try {
             setLoading(true)
             const tokens = await gptEditService.login(values)
-            console.log(tokens)
             const userInfo = await gptEditService.getUser(tokens.accessToken)
-            console.log(userInfo)
 
-            chrome.storage.local.set({
+            browser.storage.local.set({
                 tokens,
                 userInfo,
             })
 
-            onLogin()
+            onLogin({
+                ...tokens,
+                ...userInfo,
+            })
 
             setLoading(false)
         } catch (e) {
