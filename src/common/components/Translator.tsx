@@ -10,7 +10,7 @@ import { AiOutlineFileSync } from 'react-icons/ai'
 import { IoSettingsOutline } from 'react-icons/io5'
 import { TiArrowBack } from 'react-icons/ti'
 import { TbArrowsExchange, TbCsv } from 'react-icons/tb'
-import { MdOutlineGrade, MdGrade } from 'react-icons/md'
+import { MdGrade } from 'react-icons/md'
 import * as mdIcons from 'react-icons/md'
 import { StatefulTooltip } from 'baseui-sd/tooltip'
 import { detectLang, getLangConfig, sourceLanguages, targetLanguages, LangCode } from '../lang'
@@ -755,6 +755,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     const [translatedText, setTranslatedText] = useState('')
     const [translatedLines, setTranslatedLines] = useState<string[]>([])
     const [isWordMode, setIsWordMode] = useState(false)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [isCollectedWord, setIsCollectedWord] = useState(false)
     const [isAutoCollectOn, setIsAutoCollectOn] = useState(
         settings?.autoCollect === undefined ? false : settings.autoCollect
@@ -875,7 +876,9 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     }, [editableText])
 
     useEffect(() => {
-        setTranslatedLines(translatedText.split('\n'))
+        if (translatedText) {
+            setTranslatedLines(translatedText.split('\n'))
+        }
     }, [translatedText])
     const [errorMessage, setErrorMessage] = useState('')
     const startLoading = useCallback(() => {
@@ -1070,7 +1073,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 setTranslatedText(cachedValue as string)
                 return
             }
-            let isStopped = false
+            // let isStopped = false
             try {
                 await translate({
                     action,
@@ -1086,6 +1089,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         if (!message.content) {
                             return
                         }
+                        console.log(message.content)
                         setIsWordMode(message.isWordMode)
                         setTranslatedText((translatedText) => {
                             if (message.isFullText) {
@@ -1107,20 +1111,23 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         setErrorMessage(error)
                     },
                 })
+                console.log('await')
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } catch (error: any) {
                 // if error is a AbortError then ignore this error
                 if (error.name === 'AbortError') {
-                    isStopped = true
+                    // isStopped = true
                     return
                 }
                 setActionStr('Error')
                 setErrorMessage((error as Error).toString())
+                stopLoading()
             } finally {
-                if (!isStopped) {
-                    stopLoading()
-                    isStopped = true
-                }
+                // if (!isStopped) {
+                //     console.log('finally stop')
+                //     stopLoading()
+                //     isStopped = true
+                // }
             }
         },
         [translateDeps, settings?.provider, settings?.apiModel, translationFlag, startLoading, stopLoading, t]
@@ -1320,6 +1327,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     const enableVocabulary = false && !isUserscript()
 
     const handleStopGenerating = () => {
+        console.log('stop gene')
         translateControllerRef.current?.abort('stop')
         stopLoading()
         setActionStr('Stopped')
@@ -1483,6 +1491,8 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             clearInterval(timer)
         }
     }, [showSettings])
+
+    console.log('isloading', isLoading)
 
     return (
         <div
@@ -2000,7 +2010,12 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                             ref={translatedContentRef}
                                             className={styles.popupCardTranslatedContentContainer}
                                         >
-                                            <div>
+                                            <div style={{ minHeight: 60 }}>
+                                                {translatedLines.length === 0 && isLoading && (
+                                                    <div className={styles.paragraph}>
+                                                        <span className={styles.caret} />
+                                                    </div>
+                                                )}
                                                 {currentTranslateMode === 'explain-code' ||
                                                 activateAction?.outputRenderingFormat === 'markdown' ? (
                                                     <>
@@ -2016,45 +2031,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                                     translatedLines.map((line, i) => {
                                                         return (
                                                             <div className={styles.paragraph} key={`p-${i}`}>
-                                                                {isWordMode && i === 0 ? (
-                                                                    <div
-                                                                        style={{
-                                                                            display: 'flex',
-                                                                            alignItems: 'center',
-                                                                            gap: '5px',
-                                                                        }}
-                                                                    >
-                                                                        {line}
-                                                                        {false && !isLoading && (
-                                                                            <StatefulTooltip
-                                                                                content={
-                                                                                    isCollectedWord
-                                                                                        ? t('Remove from collection')
-                                                                                        : t('Add to collection')
-                                                                                }
-                                                                                showArrow
-                                                                                placement='right'
-                                                                            >
-                                                                                <div
-                                                                                    className={styles.actionButton}
-                                                                                    onClick={() =>
-                                                                                        onWordCollection(
-                                                                                            isCollectedWord
-                                                                                        )
-                                                                                    }
-                                                                                >
-                                                                                    {isCollectedWord ? (
-                                                                                        <MdGrade size={15} />
-                                                                                    ) : (
-                                                                                        <MdOutlineGrade size={15} />
-                                                                                    )}
-                                                                                </div>
-                                                                            </StatefulTooltip>
-                                                                        )}
-                                                                    </div>
-                                                                ) : (
-                                                                    line
-                                                                )}
+                                                                {line}
                                                                 {isLoading && i === translatedLines.length - 1 && (
                                                                     <span className={styles.caret} />
                                                                 )}

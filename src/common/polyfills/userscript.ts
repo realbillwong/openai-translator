@@ -20,9 +20,11 @@ class BrowserStorageSync {
 
 class BrowserStorage {
     sync: BrowserStorageSync
+    local: BrowserStorageSync
 
     constructor() {
         this.sync = new BrowserStorageSync()
+        this.local = new BrowserStorageSync()
     }
 }
 

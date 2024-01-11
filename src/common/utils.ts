@@ -428,18 +428,22 @@ export async function fetchSSE(input: string, options: FetchSSEOptions) {
         if (unauth) {
             // refresh token and retry
             const browser = await getBrowser()
-            const { tokens } = await browser.storage.sync.get(['tokens'])
-            const newTokens = await gptEditService.refreshToken(tokens.refreshToken)
+            const { tokens } = await browser.storage.local.get(['tokens'])
+            if (tokens.refreshToken) {
+                const newTokens = await gptEditService.refreshToken(tokens.refreshToken)
 
-            if (newTokens) {
-                await browser.storage.sync.set({ tokens: newTokens })
-                fetchSSE(input, {
-                    ...options,
-                    headers: {
-                        ...options.headers,
-                        Authorization: `Bearer ${newTokens.accessToken}`,
-                    },
-                })
+                if (newTokens) {
+                    await browser.storage.sync.set({ tokens: newTokens })
+                    fetchSSE(input, {
+                        ...options,
+                        headers: {
+                            ...options.headers,
+                            Authorization: `Bearer ${newTokens.accessToken}`,
+                        },
+                    })
+                } else {
+                    onError('Unauthorized')
+                }
             }
         }
 
