@@ -433,7 +433,7 @@ export async function fetchSSE(input: string, options: FetchSSEOptions) {
                 const newTokens = await gptEditService.refreshToken(tokens.refreshToken)
 
                 if (newTokens) {
-                    await browser.storage.sync.set({ tokens: newTokens })
+                    await browser.storage.local.set({ tokens: newTokens })
                     fetchSSE(input, {
                         ...options,
                         headers: {
