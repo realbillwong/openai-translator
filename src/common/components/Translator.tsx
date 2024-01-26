@@ -1,43 +1,24 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
-import { useTranslation, Trans } from 'react-i18next'
+import { useTranslation } from 'react-i18next'
 import toast from 'react-hot-toast/headless'
 import { Client as Styletron } from 'styletron-engine-atomic'
 import { Provider as StyletronProvider } from 'styletron-react'
 import { BaseProvider } from 'baseui-sd'
 import { Textarea } from 'baseui-sd/textarea'
 import { createUseStyles } from 'react-jss'
-import { AiOutlineFileSync } from 'react-icons/ai'
-import { IoSettingsOutline } from 'react-icons/io5'
-import { TiArrowBack } from 'react-icons/ti'
-import { TbArrowsExchange, TbCsv } from 'react-icons/tb'
-import { MdGrade } from 'react-icons/md'
+import { TbArrowsExchange } from 'react-icons/tb'
 import * as mdIcons from 'react-icons/md'
-import { StatefulTooltip } from 'baseui-sd/tooltip'
 import { detectLang, getLangConfig, sourceLanguages, targetLanguages, LangCode } from '../lang'
 import { translate, TranslateMode } from '../translate'
 import { Select, Value, Option } from 'baseui-sd/select'
 import { RxEraser, RxReload, RxStop } from 'react-icons/rx'
-import { LuStars, LuStarOff } from 'react-icons/lu'
 import { clsx } from 'clsx'
 import { Button } from 'baseui-sd/button'
 import { ErrorBoundary } from 'react-error-boundary'
 import { ErrorFallback } from '../components/ErrorFallback'
-import {
-    defaultAPIURL,
-    exportToCsv,
-    isDesktopApp,
-    isTauri,
-    isUserscript,
-    setSettings,
-    isBrowserExtensionContentScript,
-} from '../utils'
+import { defaultAPIURL, isDesktopApp, isTauri } from '../utils'
 import { InnerSettings } from './Settings'
 import { containerID, popupCardInnerContainerId } from '../../browser-extension/content_script/consts'
-import Dropzone from 'react-dropzone'
-import { RecognizeResult, createWorker } from 'tesseract.js'
-import { BsTextareaT } from 'react-icons/bs'
-import { FcIdea } from 'react-icons/fc'
-import { listen, Event } from '@tauri-apps/api/event'
 import IpLocationNotification from '../components/IpLocationNotification'
 import { HighlightInTextarea } from '../highlight-in-textarea'
 import { LRUCache } from 'lru-cache'
@@ -45,20 +26,10 @@ import { ISettings, IThemedStyleProps } from '../types'
 import { useTheme } from '../hooks/useTheme'
 import { Tooltip } from './Tooltip'
 import { useSettings } from '../hooks/useSettings'
-import Vocabulary from './Vocabulary'
-import { useCollectedWordTotal } from '../hooks/useCollectedWordTotal'
-import { Modal, ModalBody, ModalHeader } from 'baseui-sd/modal'
-import { vocabularyService } from '../services/vocabulary'
-import { Action, VocabularyItem } from '../internal-services/db'
+import { Action } from '../internal-services/db'
 import { CopyButton } from './CopyButton'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { actionService } from '../services/action'
-import { ActionManager } from './ActionManager'
-import { GrMoreVertical } from 'react-icons/gr'
-import { StatefulPopover } from 'baseui-sd/popover'
-import { StatefulMenu } from 'baseui-sd/menu'
-import { IconType } from 'react-icons'
-import { GiPlatform } from 'react-icons/gi'
 import { IoIosRocket } from 'react-icons/io'
 import 'katex/dist/katex.min.css'
 import Latex from 'react-latex-next'
@@ -66,25 +37,14 @@ import { Markdown } from './Markdown'
 import useResizeObserver from 'use-resize-observer'
 import _ from 'underscore'
 import { GlobalSuspense } from './GlobalSuspense'
-import { useLazyEffect } from '../usehooks'
-// import LogoWithText, { type LogoWithTextRef } from './LogoWithText'
 import { type LogoWithTextRef } from './LogoWithText'
 import Toaster from './Toaster'
-import { readBinaryFile } from '@tauri-apps/plugin-fs'
 import { getCurrent } from '@tauri-apps/api/window'
 import { useDeepCompareCallback } from 'use-deep-compare'
 import { useTranslatorStore } from '../store'
 import useSWR from 'swr'
-import {
-    IPromotionResponse,
-    checkShouldShowPromotionNotification,
-    fetchPromotions,
-    choicePromotionItem,
-    IPromotionItem,
-} from '../services/promotion'
-import { usePromotionShowed } from '../hooks/usePromotionShowed'
+import { IPromotionResponse, fetchPromotions, choicePromotionItem, IPromotionItem } from '../services/promotion'
 import { SpeakerIcon } from './SpeakerIcon'
-import { engineIcons } from '../engines'
 
 const cache = new LRUCache({
     max: 500,
@@ -438,10 +398,6 @@ const actionStrItems: Record<TranslateMode, IActionStrItem> = {
     },
 }
 
-export interface TesseractResult extends RecognizeResult {
-    text: string
-}
-
 export interface MovementXY {
     x: number
     y: number
@@ -498,18 +454,15 @@ function InnerTranslator(props: IInnerTranslatorProps) {
 
     const { showLogo = true } = props
 
-    const [refreshActionsFlag, refreshActions] = useReducer((x: number) => x + 1, 0)
-
-    const [showActionManager, setShowActionManager] = useState(false)
+    const [refreshActionsFlag] = useReducer((x: number) => x + 1, 0)
 
     const [translationFlag, forceTranslate] = useReducer((x: number) => x + 1, 0)
 
     const editorRef = useRef<HTMLTextAreaElement>(null)
     const isCompositing = useRef(false)
     const [selectedWord, setSelectedWord] = useState('')
-    const [vocabularyType, setVocabularyType] = useState<'hide' | 'vocabulary' | 'article'>('hide')
+    const [vocabularyType] = useState<'hide' | 'vocabulary' | 'article'>('hide')
     const highlightRef = useRef<HighlightInTextarea | null>(null)
-    const [showWordbookButtons, setShowWordbookButtons] = useState(false)
     const { t, i18n } = useTranslation()
     const { settings } = useSettings()
     useEffect(() => {
@@ -551,28 +504,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         editor.spellcheck = false
     }, [props.uuid, showSettings])
 
-    useEffect(() => {
-        if (!isTauri()) {
-            return undefined
-        }
-        let unlisten: (() => void) | undefined = undefined
-        const appWindow = getCurrent()
-        appWindow
-            .listen('tauri://focus', () => {
-                const editor = editorRef.current
-                if (!editor) {
-                    return
-                }
-                editor.focus()
-            })
-            .then((cb) => {
-                unlisten = cb
-            })
-        return () => {
-            unlisten?.()
-        }
-    }, [])
-
     const [highlightWords, setHighlightWords] = useState<string[]>([])
 
     useEffect(() => {
@@ -612,23 +543,15 @@ function InnerTranslator(props: IInnerTranslatorProps) {
 
     const headerRef = useRef<HTMLDivElement>(null)
     const { width: headerWidth = 0 } = useResizeObserver<HTMLDivElement>({ ref: headerRef })
-
     const logoWithTextRef = useRef<LogoWithTextRef>(null)
-
     const languagesSelectorRef = useRef<HTMLDivElement>(null)
-
     const { width: languagesSelectorWidth = 0 } = useResizeObserver<HTMLDivElement>({ ref: languagesSelectorRef })
-
     const headerActionButtonsRef = useRef<HTMLDivElement>(null)
-
     const { width: headerActionButtonsWidth = 0 } = useResizeObserver<HTMLDivElement>({ ref: headerActionButtonsRef })
-
     const containerRef = useRef<HTMLDivElement>(null)
     const editorContainerRef = useRef<HTMLDivElement>(null)
     const translatedContainerRef = useRef<HTMLDivElement>(null)
-
     const translatedContentRef = useRef<HTMLDivElement>(null)
-
     const actionButtonsRef = useRef<HTMLDivElement>(null)
 
     const hasActivateAction = activateAction !== undefined
@@ -678,12 +601,10 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     const actions = useLiveQuery(() => actionService.list(), [refreshActionsFlag])
 
     const [displayedActions, setDisplayedActions] = useState<Action[]>([])
-    const [hiddenActions, setHiddenActions] = useState<Action[]>([])
 
     useEffect(() => {
         if (!actions) {
             setDisplayedActions([])
-            setHiddenActions([])
             return
         }
         let displayedActions = actions.slice(0, displayedActionsMaxCount)
@@ -701,7 +622,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             }
         }
         setDisplayedActions(displayedActions)
-        setHiddenActions(hiddenActions)
     }, [actions, activateAction?.id, displayedActionsMaxCount])
 
     const isTranslate = currentTranslateMode === 'translate'
@@ -751,16 +671,8 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     const styles = useStyles({ theme, themeType, isDesktopApp: isDesktopApp(), showLogo })
     const [isLoading, setIsLoading] = useState(false)
     const [editableText, setEditableText] = useState('')
-    const [tokenCount, setTokenCount] = useState(0)
     const [translatedText, setTranslatedText] = useState('')
     const [translatedLines, setTranslatedLines] = useState<string[]>([])
-    const [isWordMode, setIsWordMode] = useState(false)
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const [isCollectedWord, setIsCollectedWord] = useState(false)
-    const [isAutoCollectOn, setIsAutoCollectOn] = useState(
-        settings?.autoCollect === undefined ? false : settings.autoCollect
-    )
-
     const [translateDeps, setTranslateDeps] = useState<{
         sourceLang?: LangCode
         targetLang?: LangCode
@@ -846,38 +758,11 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         setEditableText(translateDeps.text)
     }, [translateDeps.text])
 
-    useLazyEffect(
-        () => {
-            ;(async () => {
-                // use dynamic import to reduce bundle size
-                const { countTokens } = await import('../token')
-                setTokenCount(countTokens(editableText, settings?.apiModel))
-            })()
-        },
-        [editableText],
-        500
-    )
-
-    const checkWordCollection = useCallback(async () => {
-        try {
-            const item = await vocabularyService.getItem(editableText.trim())
-            if (item) {
-                await vocabularyService.putItem({
-                    ...item,
-                    reviewCount: item.reviewCount + 1,
-                })
-                setIsCollectedWord(true)
-            } else {
-                setIsCollectedWord(false)
-            }
-        } catch (e) {
-            console.error(e)
-        }
-    }, [editableText])
-
     useEffect(() => {
         if (translatedText) {
             setTranslatedLines(translatedText.split('\n'))
+        } else {
+            setTranslatedLines([])
         }
     }, [translatedText])
     const [errorMessage, setErrorMessage] = useState('')
@@ -913,8 +798,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     }, [sourceLang, actionStr])
 
     const translatedLanguageDirection = useMemo(() => getLangConfig(sourceLang).direction, [sourceLang])
-
-    const { collectedWordTotal, setCollectedWordTotal } = useCollectedWordTotal()
 
     useEffect(() => {
         const popupCardInnerContainer: HTMLDivElement | null | undefined = document
@@ -961,62 +844,12 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         }
     }, [showSettings])
 
-    const [isNotLogin, setIsNotLogin] = useState(false)
-
-    /**
-     * Add or remove word from collection.
-     * @param remove - Remove word from collection if true, otherwise add it to collection.
-     */
-    const onWordCollection = useCallback(
-        async (remove: boolean) => {
-            try {
-                if (remove) {
-                    const wordInfo = await vocabularyService.getItem(editableText.trim())
-                    await vocabularyService.deleteItem(wordInfo?.word ?? '')
-                    setCollectedWordTotal((t: number) => t - 1)
-                    setIsCollectedWord(false)
-                } else {
-                    await vocabularyService.putItem({
-                        word: editableText,
-                        reviewCount: 1,
-                        description: translatedText.slice(editableText.length + 1), // separate string after first '\n'
-                        updatedAt: new Date().valueOf().toString(),
-                        createdAt: new Date().valueOf().toString(),
-                    })
-                    setCollectedWordTotal((t: number) => t + 1)
-                    setIsCollectedWord(true)
-                }
-            } catch (e) {
-                console.error(e)
-            }
-        },
-        [editableText, setCollectedWordTotal, translatedText]
-    )
-
-    useEffect(() => {
-        setSettings({ autoCollect: isAutoCollectOn })
-    }, [isAutoCollectOn])
-
-    const autoCollect = useCallback(async () => {
-        await checkWordCollection()
-        if (isWordMode && isAutoCollectOn) {
-            onWordCollection(false)
-            console.info(`Auto collecting word: ${editableText}`)
-        }
-    }, [isWordMode, isAutoCollectOn, editableText, onWordCollection, checkWordCollection])
-
-    const autoCollectRef = useRef(autoCollect)
-    useEffect(() => {
-        autoCollectRef.current = autoCollect
-    }, [autoCollect])
-
     const translateText = useDeepCompareCallback(
         async (selectedWord: string, signal: AbortSignal) => {
             const { text, sourceLang, targetLang, action } = translateDeps
             if (!text || !sourceLang || !targetLang || !action) {
                 return
             }
-            setShowWordbookButtons(false)
             const actionMode = action.mode
             const actionStrItem = actionMode
                 ? actionStrItems[actionMode]
@@ -1058,7 +891,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         actionStr = 'Polished'
                     }
                     setActionStr(actionStr)
-                    autoCollectRef.current()
                 }
             }
             beforeTranslate()
@@ -1083,14 +915,15 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                     detectFrom: sourceLang,
                     detectTo: targetLang,
                     onStatusCode: (statusCode) => {
-                        setIsNotLogin(statusCode === 401 || statusCode === 403)
+                        if (statusCode === 401 || statusCode === 403) {
+                            console.log(statusCode)
+                        }
                     },
                     onMessage: async (message) => {
                         if (!message.content) {
                             return
                         }
                         console.log(message.content)
-                        setIsWordMode(message.isWordMode)
                         setTranslatedText((translatedText) => {
                             if (message.isFullText) {
                                 return message.content
@@ -1111,7 +944,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         setErrorMessage(error)
                     },
                 })
-                console.log('await')
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } catch (error: any) {
                 // if error is a AbortError then ignore this error
@@ -1172,148 +1004,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         }
     }, [props.defaultShowSettings, settings])
 
-    const [isOCRProcessing, setIsOCRProcessing] = useState(false)
-    const [showOCRProcessing, setShowOCRProcessing] = useState(false)
-
-    useEffect(() => {
-        if (isOCRProcessing) {
-            setShowOCRProcessing(true)
-            return
-        }
-        const timer = setTimeout(() => {
-            setShowOCRProcessing(false)
-        }, 1500)
-        return () => {
-            clearTimeout(timer)
-        }
-    }, [isOCRProcessing])
-
-    useEffect(() => {
-        if (!isTauri()) {
-            return
-        }
-        let unlisten: (() => void) | undefined = undefined
-        ;(async () => {
-            unlisten = await listen('tauri://file-drop', async (e: Event<string>) => {
-                if (e.payload.length !== 1) {
-                    alert('Only one file can be uploaded at a time.')
-                    return
-                }
-
-                const filePath = e.payload[0]
-
-                if (!filePath) {
-                    return
-                }
-
-                const fileExtension = filePath.split('.').pop()?.toLowerCase() || ''
-                if (!['jpg', 'jpeg', 'png', 'gif'].includes(fileExtension)) {
-                    alert('invalid file type')
-                    return
-                }
-
-                const worker = createWorker()
-
-                const binaryFile = await readBinaryFile(filePath)
-
-                const file = new Blob([binaryFile.buffer], {
-                    type: `image/${fileExtension}`,
-                })
-
-                const fileSize = file.size / 1024 / 1024
-                if (fileSize > 1) {
-                    alert('File size must be less than 1MB')
-                    return
-                }
-
-                setTranslateDeps((v) => {
-                    return {
-                        ...v,
-                        text: '',
-                    }
-                })
-                setIsOCRProcessing(true)
-
-                await (await worker).loadLanguage('eng+chi_sim+chi_tra+jpn+rus+kor')
-                await (await worker).initialize('eng+chi_sim+chi_tra+jpn+rus+kor')
-
-                const { data } = await (await worker).recognize(file)
-
-                if (activateAction) {
-                    const newTranslateDeps = await getTranslateDeps(data.text, activateAction)
-
-                    setTranslateDeps(newTranslateDeps)
-                }
-
-                setIsOCRProcessing(false)
-
-                await (await worker).terminate()
-            })
-        })()
-
-        return () => {
-            unlisten?.()
-        }
-    }, [activateAction, getTranslateDeps])
-
-    const onDrop = async (acceptedFiles: File[]) => {
-        const worker = createWorker()
-
-        setTranslateDeps((v) => {
-            return {
-                ...v,
-                text: '',
-            }
-        })
-        setIsOCRProcessing(true)
-
-        if (acceptedFiles.length !== 1) {
-            alert('Only one file can be uploaded at a time.')
-            return
-        }
-
-        const file = acceptedFiles[0]
-        if (!file.type.startsWith('image/')) {
-            alert('invalid file type')
-            return
-        }
-
-        const fileSize = file.size / (1024 * 1024)
-        if (fileSize > 1) {
-            alert('File size must be less than 1MB')
-            return
-        }
-
-        await (await worker).loadLanguage('eng+chi_sim+chi_tra+jpn+rus+kor')
-        await (await worker).initialize('eng+chi_sim+chi_tra+jpn+rus+kor')
-
-        const { data } = await (await worker).recognize(file)
-
-        if (activateAction) {
-            const newTranslateDeps = await getTranslateDeps(data.text, activateAction)
-            setTranslateDeps(newTranslateDeps)
-        }
-
-        setIsOCRProcessing(false)
-
-        await (await worker).terminate()
-    }
-
-    const onCsvExport = async () => {
-        try {
-            const words = await vocabularyService.listItems()
-            await exportToCsv<VocabularyItem>(`openai-translator-collection-${new Date().valueOf()}`, words)
-            if (isDesktopApp()) {
-                toast(t('CSV file saved on Desktop'), {
-                    duration: 5000,
-                    icon: '👏',
-                })
-            }
-        } catch (e) {
-            console.error(e)
-        }
-    }
-
     const editableTextSpeakingIconRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
@@ -1324,8 +1014,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         editableTextSpeakingIconRef.current?.click()
     }, [selectedWord, settings?.readSelectedWordsFromInputElementsText])
 
-    const enableVocabulary = false && !isUserscript()
-
     const handleStopGenerating = () => {
         console.log('stop gene')
         translateControllerRef.current?.abort('stop')
@@ -1334,28 +1022,16 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     }
 
     const [isScrolledToTop, setIsScrolledToTop] = useState(false)
-    const [isScrolledToBottom, setIsScrolledToBottom] = useState(false)
 
     useEffect(() => {
         const isOnTop = () => {
             return document.documentElement.scrollTop === 0
         }
-        const isOnBottom = () => {
-            const scrollTop = document.documentElement.scrollTop
-
-            const windowHeight = window.innerHeight
-
-            const documentHeight = document.documentElement.scrollHeight
-
-            return scrollTop + windowHeight >= documentHeight
-        }
 
         setIsScrolledToTop(isOnTop())
-        setIsScrolledToBottom(isOnBottom())
 
         const onScroll = () => {
             setIsScrolledToTop(isOnTop())
-            setIsScrolledToBottom(isOnBottom())
         }
 
         window.addEventListener('scroll', onScroll)
@@ -1428,24 +1104,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         }
     }, [refetchPromotions])
 
-    useEffect(() => {
-        if (!isTauri()) {
-            return undefined
-        }
-        let unlisten: (() => void) | undefined = undefined
-        const appWindow = getCurrent()
-        appWindow
-            .listen('tauri://focus', () => {
-                refetchPromotions()
-            })
-            .then((cb) => {
-                unlisten = cb
-            })
-        return () => {
-            unlisten?.()
-        }
-    }, [refetchPromotions])
-
     const [openaiAPIKeyPromotion, setOpenaiAPIKeyPromotion] = useState<IPromotionItem>()
     const [settingsHeaderPromotion, setSettingsHeaderPromotion] = useState<IPromotionItem>()
 
@@ -1476,24 +1134,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         }
     }, [promotions?.openai_api_key, promotions?.settings_header])
 
-    const { promotionShowed: openaiAPIKeyPromotionShowed } = usePromotionShowed(openaiAPIKeyPromotion)
-    const { promotionShowed: settingsHeaderPromotionShowed } = usePromotionShowed(settingsHeaderPromotion)
-
-    const [shouldShowPromotionNotification, setShouldShowPromotionNotification] = useState(false)
-
-    useEffect(() => {
-        checkShouldShowPromotionNotification().then(setShouldShowPromotionNotification)
-        const ms = 1000 * 60 * 5
-        const timer = setInterval(() => {
-            checkShouldShowPromotionNotification().then(setShouldShowPromotionNotification)
-        }, ms)
-        return () => {
-            clearInterval(timer)
-        }
-    }, [showSettings])
-
-    console.log('isloading', isLoading)
-
     return (
         <div
             className={clsx(styles.popupCard, {
@@ -1504,8 +1144,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 minHeight: vocabularyType !== 'hide' ? '600px' : undefined,
                 background: theme.colors.backgroundPrimary,
             }}
-            data-token={tokenCount}
-            data-ocr-processing={showOCRProcessing}
         >
             {showSettings && (
                 <InnerSettings
@@ -1662,87 +1300,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                 )
                             })}
                         </div>
-                        {props.showSettingsIcon && (
-                            <div className={styles.popupCardHeaderMoreActionsContainer}>
-                                <StatefulPopover
-                                    autoFocus={false}
-                                    triggerType='hover'
-                                    showArrow
-                                    placement='bottom'
-                                    content={
-                                        <StatefulMenu
-                                            initialState={{
-                                                highlightedIndex: hiddenActions.findIndex(
-                                                    (action) => action.id === activateAction?.id
-                                                ),
-                                            }}
-                                            onItemSelect={async ({ item }) => {
-                                                const actionID = item.id
-                                                if (actionID === '__manager__') {
-                                                    if (isTauri()) {
-                                                        const { invoke } = await import('@tauri-apps/api/primitives')
-                                                        await invoke('show_action_manager_window')
-                                                    } else {
-                                                        setShowActionManager(true)
-                                                    }
-                                                    return
-                                                }
-                                                setActivateAction(actions?.find((a) => a.id === (actionID as number)))
-                                            }}
-                                            items={[
-                                                ...hiddenActions.map((action) => {
-                                                    return {
-                                                        id: action.id,
-                                                        label: (
-                                                            <div
-                                                                style={{
-                                                                    display: 'flex',
-                                                                    flexDirection: 'row',
-                                                                    alignItems: 'center',
-                                                                    gap: 6,
-                                                                }}
-                                                            >
-                                                                {action.icon
-                                                                    ? React.createElement(
-                                                                          (mdIcons as Record<string, IconType>)[
-                                                                              action.icon
-                                                                          ],
-                                                                          { size: 15 }
-                                                                      )
-                                                                    : undefined}
-                                                                {action.mode ? t(action.name) : action.name}
-                                                            </div>
-                                                        ),
-                                                    }
-                                                }),
-                                                { divider: true },
-                                                {
-                                                    id: '__manager__',
-                                                    label: (
-                                                        <div
-                                                            style={{
-                                                                display: 'flex',
-                                                                flexDirection: 'row',
-                                                                alignItems: 'center',
-                                                                gap: 6,
-                                                                fontWeight: 500,
-                                                            }}
-                                                        >
-                                                            <GiPlatform />
-                                                            {t('Action Manager')}
-                                                        </div>
-                                                    ),
-                                                },
-                                            ]}
-                                        />
-                                    }
-                                >
-                                    <div className={styles.popupCardHeaderMoreActionsBtn}>
-                                        <GrMoreVertical />
-                                    </div>
-                                </StatefulPopover>
-                            </div>
-                        )}
                     </div>
                     <div className={styles.popupCardContentContainer}>
                         {settings?.apiURL === defaultAPIURL && (
@@ -1853,69 +1410,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                 </div>
                             </div>
                             <div className={styles.actionButtonsContainer}>
-                                <>
-                                    {false && (
-                                        <Tooltip content={t('Upload an image for OCR translation')} placement='bottom'>
-                                            <div className={styles.actionButton}>
-                                                <Dropzone onDrop={onDrop}>
-                                                    {({ getRootProps, getInputProps }) => (
-                                                        <div {...getRootProps()} className={styles.actionButton}>
-                                                            <input {...getInputProps({ multiple: false })} />
-                                                            <BsTextareaT size={15} />
-                                                        </div>
-                                                    )}
-                                                </Dropzone>
-                                            </div>
-                                        </Tooltip>
-                                    )}
-                                    {enableVocabulary && (
-                                        <StatefulTooltip
-                                            content={
-                                                <Trans
-                                                    i18nKey='words are collected'
-                                                    values={{
-                                                        collectTotal: collectedWordTotal,
-                                                    }}
-                                                />
-                                            }
-                                            showArrow
-                                            placement='top'
-                                        >
-                                            <div
-                                                className={styles.actionButton}
-                                                onClick={() => setShowWordbookButtons((e) => !e)}
-                                            >
-                                                <AiOutlineFileSync size={15} />
-                                            </div>
-                                        </StatefulTooltip>
-                                    )}
-                                    {showWordbookButtons && (
-                                        <>
-                                            <StatefulTooltip content={t('Collection Review')} showArrow placement='top'>
-                                                <div className={styles.actionButton}>
-                                                    <MdGrade
-                                                        size={15}
-                                                        onClick={() => setVocabularyType('vocabulary')}
-                                                    />
-                                                </div>
-                                            </StatefulTooltip>
-                                            <StatefulTooltip
-                                                content={t('Export your collection as a csv file')}
-                                                showArrow
-                                                placement='top'
-                                            >
-                                                <div className={styles.actionButton} onClick={onCsvExport}>
-                                                    <TbCsv size={15} />
-                                                </div>
-                                            </StatefulTooltip>
-                                            <StatefulTooltip content='Big Bang' showArrow placement='top'>
-                                                <div className={styles.actionButton}>
-                                                    <FcIdea size={15} onClick={() => setVocabularyType('article')} />
-                                                </div>
-                                            </StatefulTooltip>
-                                        </>
-                                    )}
-                                </>
                                 <div style={{ marginLeft: 'auto' }}></div>
                                 {!!editableText.length && (
                                     <>
@@ -2071,22 +1565,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                                         />
                                                     </div>
                                                 </Tooltip>
-                                                {false && isWordMode && (
-                                                    <Tooltip content={t('Auto collect')} placement='top'>
-                                                        <div
-                                                            className={styles.actionButton}
-                                                            onClick={() => {
-                                                                setIsAutoCollectOn((prevState) => !prevState)
-                                                            }}
-                                                        >
-                                                            {isAutoCollectOn ? (
-                                                                <LuStars size={15} />
-                                                            ) : (
-                                                                <LuStarOff size={15} />
-                                                            )}
-                                                        </div>
-                                                    </Tooltip>
-                                                )}
                                                 <Tooltip content={t('Copy to clipboard')} placement='top'>
                                                     <div className={styles.actionButton}>
                                                         <CopyButton text={translatedText} styles={styles}></CopyButton>
@@ -2096,173 +1574,11 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                         )}
                                     </div>
                                 )}
-                                {isNotLogin && settings?.provider === 'ChatGPT' && (
-                                    <div
-                                        style={{
-                                            fontSize: '12px',
-                                        }}
-                                    >
-                                        <span>{t('Please login to ChatGPT Web')}: </span>
-                                        <a href='https://chat.openai.com' target='_blank' rel='noreferrer'>
-                                            Login
-                                        </a>
-                                    </div>
-                                )}
                             </div>
                         )}
                     </div>
                 </div>
             </div>
-            {props.showSettingsIcon && (
-                <div
-                    className={styles.footer}
-                    style={{
-                        boxShadow: isScrolledToBottom ? undefined : theme.lighting.shadow700,
-                    }}
-                >
-                    <Tooltip content={showSettings ? t('Go to Translator') : t('Go to Settings')} placement='right'>
-                        <Button
-                            size='mini'
-                            kind='tertiary'
-                            overrides={{
-                                Root: {
-                                    style: {
-                                        zIndex: 1003,
-                                    },
-                                },
-                            }}
-                            onClick={async (e) => {
-                                e.stopPropagation()
-                                e.preventDefault()
-                                if (isBrowserExtensionContentScript()) {
-                                    const browser = (await import('webextension-polyfill')).default
-                                    await browser.runtime.sendMessage({
-                                        type: 'openOptionsPage',
-                                        openaiAPIKeyPromotionID: openaiAPIKeyPromotion?.id,
-                                        headerPromotionID: settingsHeaderPromotion?.id,
-                                    })
-                                } else {
-                                    setShowSettings((s) => !s)
-                                }
-                            }}
-                        >
-                            <div
-                                style={{
-                                    display: 'flex',
-                                    flexDirection: 'row',
-                                    alignItems: 'center',
-                                    gap: 6,
-                                    fontSize: '11px',
-                                }}
-                            >
-                                {showSettings ? (
-                                    <TiArrowBack size={15} />
-                                ) : (
-                                    <div
-                                        style={{
-                                            position: 'relative',
-                                        }}
-                                    >
-                                        <IoSettingsOutline
-                                            style={{
-                                                display: 'block',
-                                            }}
-                                            size={15}
-                                        />
-                                        {shouldShowPromotionNotification &&
-                                            (openaiAPIKeyPromotion || settingsHeaderPromotion) &&
-                                            (!openaiAPIKeyPromotionShowed || !settingsHeaderPromotionShowed) && (
-                                                <div
-                                                    style={{
-                                                        position: 'absolute',
-                                                        width: '0.45rem',
-                                                        height: '0.45rem',
-                                                        top: '-4px',
-                                                        right: '-6px',
-                                                        borderRadius: '50%',
-                                                        backgroundColor: settingsHeaderPromotionShowed
-                                                            ? theme.colors.warning400
-                                                            : theme.colors.accent300,
-                                                    }}
-                                                />
-                                            )}
-                                    </div>
-                                )}
-                                {showSettings ? t('Go back') : ''}
-                            </div>
-                        </Button>
-                    </Tooltip>
-                    {!showSettings && (
-                        <div className={styles.poweredBy}>
-                            Powered by{' '}
-                            <div className={styles.brand}>
-                                {React.createElement(engineIcons[settings.provider], {
-                                    size: 10,
-                                    style: {
-                                        marginBottom: 1,
-                                    },
-                                })}
-                                {settings.provider}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
-            {enableVocabulary && (
-                <Modal
-                    isOpen={vocabularyType !== 'hide'}
-                    onClose={() => setVocabularyType('hide')}
-                    closeable
-                    overrides={{
-                        Close: {
-                            style: {
-                                display: 'none',
-                            },
-                        },
-                    }}
-                    size='auto'
-                    autoFocus
-                    animate
-                    role='dialog'
-                >
-                    <Vocabulary
-                        onCancel={() => setVocabularyType('hide')}
-                        onInsert={(content, highlightWords) => {
-                            setEditableText(content)
-                            setHighlightWords(highlightWords)
-                            setSelectedWord('')
-                            setActivateAction(actions?.find((action) => action.mode === 'translate'))
-                            setVocabularyType('hide')
-                        }}
-                        type={vocabularyType as 'vocabulary' | 'article'}
-                    />
-                </Modal>
-            )}
-            <Modal
-                isOpen={!isDesktopApp() && showActionManager}
-                onClose={() => {
-                    setShowActionManager(false)
-                    if (!isDesktopApp()) {
-                        refreshActions()
-                    }
-                }}
-                closeable
-                size='auto'
-                autoFocus
-                animate
-                role='dialog'
-            >
-                <ModalHeader>
-                    <div
-                        style={{
-                            padding: 5,
-                        }}
-                    />
-                </ModalHeader>
-                <ModalBody>
-                    <ActionManager draggable={props.showSettingsIcon} />
-                </ModalBody>
-            </Modal>
             <Toaster />
         </div>
     )
