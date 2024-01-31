@@ -16,10 +16,9 @@ import { clsx } from 'clsx'
 import { Button } from 'baseui-sd/button'
 import { ErrorBoundary } from 'react-error-boundary'
 import { ErrorFallback } from '../components/ErrorFallback'
-import { defaultAPIURL, isDesktopApp, isTauri } from '../utils'
+import { isDesktopApp, isTauri } from '../utils'
 import { InnerSettings } from './Settings'
 import { containerID, popupCardInnerContainerId } from '../../browser-extension/content_script/consts'
-import IpLocationNotification from '../components/IpLocationNotification'
 import { HighlightInTextarea } from '../highlight-in-textarea'
 import { LRUCache } from 'lru-cache'
 import { ISettings, IThemedStyleProps } from '../types'
@@ -415,6 +414,7 @@ export interface IInnerTranslatorProps {
     showLogo?: boolean
     onSettingsSave?: (oldSettings: ISettings) => void
     onSettingsShow?: (isShow: boolean) => void
+    onAuthError?: () => void
 }
 
 export interface ITranslatorProps extends IInnerTranslatorProps {
@@ -608,17 +608,14 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             return
         }
         let displayedActions = actions.slice(0, displayedActionsMaxCount)
-        let hiddenActions = actions.slice(displayedActionsMaxCount)
         if (!displayedActions.find((action) => action.id === activateAction?.id)) {
             const activatedAction = actions.find((a) => a.id === activateAction?.id)
             if (activatedAction) {
                 const lastDisplayedAction = displayedActions[displayedActions.length - 1]
                 if (lastDisplayedAction) {
                     displayedActions = displayedActions.slice(0, displayedActions.length - 1)
-                    hiddenActions = [lastDisplayedAction, ...hiddenActions]
                 }
                 displayedActions.push(activatedAction)
-                hiddenActions = hiddenActions.filter((a) => a.id !== activatedAction.id)
             }
         }
         setDisplayedActions(displayedActions)
@@ -797,6 +794,12 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         editor.dir = getLangConfig(sourceLang).direction
     }, [sourceLang, actionStr])
 
+    useEffect(() => {
+        setTranslatedText('')
+        setIsLoading(true)
+        setErrorMessage('')
+    }, [])
+
     const translatedLanguageDirection = useMemo(() => getLangConfig(sourceLang).direction, [sourceLang])
 
     useEffect(() => {
@@ -923,7 +926,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         if (!message.content) {
                             return
                         }
-                        console.log(message.content)
                         setTranslatedText((translatedText) => {
                             if (message.isFullText) {
                                 return message.content
@@ -940,8 +942,13 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         })
                     },
                     onError: (error) => {
+                        if (error === 'Unauthorized') {
+                            props.onAuthError && props.onAuthError()
+                        }
+
                         setActionStr('Error')
                         setErrorMessage(error)
+                        stopLoading()
                     },
                 })
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1302,11 +1309,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         </div>
                     </div>
                     <div className={styles.popupCardContentContainer}>
-                        {settings?.apiURL === defaultAPIURL && (
-                            <div>
-                                <IpLocationNotification showSettings={showSettings} />
-                            </div>
-                        )}
                         <div ref={editorContainerRef} className={styles.popupCardEditorContainer}>
                             <div
                                 style={{
@@ -1459,123 +1461,121 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                 )}
                             </div>
                         </div>
-                        {translateDeps.text !== '' && activateAction?.id === translateDeps.action?.id && (
-                            <div
-                                className={styles.popupCardTranslatedContainer}
-                                ref={translatedContainerRef}
-                                dir={translatedLanguageDirection}
-                            >
-                                {actionStr && (
-                                    <div
-                                        className={clsx({
-                                            [styles.actionStr]: true,
-                                            [styles.error]: !!errorMessage,
-                                        })}
-                                    >
-                                        <div>{actionStr}</div>
-                                        {isLoading ? (
-                                            <span className={styles.writing} key={'1'} />
-                                        ) : errorMessage ? (
-                                            <span key={'2'}>😢</span>
-                                        ) : translateControllerRef.current?.signal.aborted &&
-                                          translateControllerRef.current?.signal.reason === 'stop' ? (
-                                            <span key={'3'}>⏹️</span>
-                                        ) : (
-                                            <span key={'4'}>👍</span>
-                                        )}
-                                    </div>
-                                )}
-                                {errorMessage ? (
-                                    <div className={styles.errorMessage}>
-                                        <span>{errorMessage}</span>
-                                        <Tooltip content={t('Retry')} placement='bottom'>
-                                            <div onClick={() => forceTranslate()} className={styles.actionButton}>
-                                                <RxReload size={15} />
-                                            </div>
-                                        </Tooltip>
-                                    </div>
-                                ) : (
-                                    <div
-                                        style={{
-                                            width: '100%',
-                                        }}
-                                    >
-                                        <div
-                                            ref={translatedContentRef}
-                                            className={styles.popupCardTranslatedContentContainer}
-                                        >
-                                            <div style={{ minHeight: 60 }}>
-                                                {translatedLines.length === 0 && isLoading && (
-                                                    <div className={styles.paragraph}>
-                                                        <span className={styles.caret} />
-                                                    </div>
-                                                )}
-                                                {currentTranslateMode === 'explain-code' ||
-                                                activateAction?.outputRenderingFormat === 'markdown' ? (
-                                                    <>
-                                                        <Markdown>{translatedText}</Markdown>
-                                                        {isLoading && <span className={styles.caret} />}
-                                                    </>
-                                                ) : activateAction?.outputRenderingFormat === 'latex' ? (
-                                                    <>
-                                                        <Latex>{translatedText}</Latex>
-                                                        {isLoading && <span className={styles.caret} />}
-                                                    </>
-                                                ) : (
-                                                    translatedLines.map((line, i) => {
-                                                        return (
-                                                            <div className={styles.paragraph} key={`p-${i}`}>
-                                                                {line}
-                                                                {isLoading && i === translatedLines.length - 1 && (
-                                                                    <span className={styles.caret} />
-                                                                )}
-                                                            </div>
-                                                        )
-                                                    })
-                                                )}
-                                            </div>
+                        <div
+                            className={styles.popupCardTranslatedContainer}
+                            ref={translatedContainerRef}
+                            dir={translatedLanguageDirection}
+                        >
+                            {actionStr && (
+                                <div
+                                    className={clsx({
+                                        [styles.actionStr]: true,
+                                        [styles.error]: !!errorMessage,
+                                    })}
+                                >
+                                    <div>{actionStr}</div>
+                                    {isLoading ? (
+                                        <span className={styles.writing} key={'1'} />
+                                    ) : errorMessage ? (
+                                        <span key={'2'}>😢</span>
+                                    ) : translateControllerRef.current?.signal.aborted &&
+                                      translateControllerRef.current?.signal.reason === 'stop' ? (
+                                        <span key={'3'}>⏹️</span>
+                                    ) : (
+                                        <span key={'4'}>👍</span>
+                                    )}
+                                </div>
+                            )}
+                            {errorMessage ? (
+                                <div className={styles.errorMessage}>
+                                    <span>{errorMessage}</span>
+                                    <Tooltip content={t('Retry')} placement='top'>
+                                        <div onClick={() => forceTranslate()} className={styles.actionButton}>
+                                            <RxReload size={15} />
                                         </div>
-                                        {translatedText && (
-                                            <div ref={actionButtonsRef} className={styles.actionButtonsContainer}>
-                                                <div style={{ marginRight: 'auto' }} />
-                                                {!isLoading && (
-                                                    <Tooltip content={t('Retry')} placement='top'>
-                                                        <div
-                                                            onClick={() => forceTranslate()}
-                                                            className={styles.actionButton}
-                                                        >
-                                                            <RxReload size={15} />
+                                    </Tooltip>
+                                </div>
+                            ) : (
+                                <div
+                                    style={{
+                                        width: '100%',
+                                    }}
+                                >
+                                    <div
+                                        ref={translatedContentRef}
+                                        className={styles.popupCardTranslatedContentContainer}
+                                    >
+                                        <div style={{ minHeight: 60 }}>
+                                            {translatedLines.length === 0 && isLoading && (
+                                                <div className={styles.paragraph}>
+                                                    <span className={styles.caret} />
+                                                </div>
+                                            )}
+                                            {currentTranslateMode === 'explain-code' ||
+                                            activateAction?.outputRenderingFormat === 'markdown' ? (
+                                                <>
+                                                    <Markdown>{translatedText}</Markdown>
+                                                    {isLoading && <span className={styles.caret} />}
+                                                </>
+                                            ) : activateAction?.outputRenderingFormat === 'latex' ? (
+                                                <>
+                                                    <Latex>{translatedText}</Latex>
+                                                    {isLoading && <span className={styles.caret} />}
+                                                </>
+                                            ) : (
+                                                translatedLines.map((line, i) => {
+                                                    return (
+                                                        <div className={styles.paragraph} key={`p-${i}`}>
+                                                            {line}
+                                                            {isLoading && i === translatedLines.length - 1 && (
+                                                                <span className={styles.caret} />
+                                                            )}
                                                         </div>
-                                                    </Tooltip>
-                                                )}
-                                                <Tooltip content={t('Speak')} placement='top'>
-                                                    <div className={styles.actionButton}>
-                                                        <SpeakerIcon
-                                                            size={15}
-                                                            provider={settings.tts?.provider}
-                                                            text={translatedText}
-                                                            lang={targetLang ?? 'en'}
-                                                            voice={
-                                                                settings.tts?.voices?.find(
-                                                                    (item) => item.lang === targetLang
-                                                                )?.voice
-                                                            }
-                                                            rate={settings.tts?.rate}
-                                                            volume={settings.tts?.volume}
-                                                        />
-                                                    </div>
-                                                </Tooltip>
-                                                <Tooltip content={t('Copy to clipboard')} placement='top'>
-                                                    <div className={styles.actionButton}>
-                                                        <CopyButton text={translatedText} styles={styles}></CopyButton>
-                                                    </div>
-                                                </Tooltip>
-                                            </div>
-                                        )}
+                                                    )
+                                                })
+                                            )}
+                                        </div>
                                     </div>
-                                )}
-                            </div>
-                        )}
+                                    {translatedText && (
+                                        <div ref={actionButtonsRef} className={styles.actionButtonsContainer}>
+                                            <div style={{ marginRight: 'auto' }} />
+                                            {!isLoading && (
+                                                <Tooltip content={t('Retry')} placement='top'>
+                                                    <div
+                                                        onClick={() => forceTranslate()}
+                                                        className={styles.actionButton}
+                                                    >
+                                                        <RxReload size={15} />
+                                                    </div>
+                                                </Tooltip>
+                                            )}
+                                            <Tooltip content={t('Speak')} placement='top'>
+                                                <div className={styles.actionButton}>
+                                                    <SpeakerIcon
+                                                        size={15}
+                                                        provider={settings.tts?.provider}
+                                                        text={translatedText}
+                                                        lang={targetLang ?? 'en'}
+                                                        voice={
+                                                            settings.tts?.voices?.find(
+                                                                (item) => item.lang === targetLang
+                                                            )?.voice
+                                                        }
+                                                        rate={settings.tts?.rate}
+                                                        volume={settings.tts?.volume}
+                                                    />
+                                                </div>
+                                            </Tooltip>
+                                            <Tooltip content={t('Copy to clipboard')} placement='top'>
+                                                <div className={styles.actionButton}>
+                                                    <CopyButton text={translatedText} styles={styles}></CopyButton>
+                                                </div>
+                                            </Tooltip>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>

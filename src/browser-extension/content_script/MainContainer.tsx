@@ -33,6 +33,12 @@ export default function MainContainer(props: IMainContainerProps) {
         setUserInfo(info)
     }
 
+    const handleAuthError = () => {
+        utils.removeUserInfo().then(() => {
+            setUserInfo(undefined)
+        })
+    }
+
     const renderContent = () => {
         if (loading) return null
 
@@ -45,6 +51,7 @@ export default function MainContainer(props: IMainContainerProps) {
                     showSettingsIcon={false}
                     defaultShowSettings={props.isUserscript}
                     showLogo={false}
+                    onAuthError={handleAuthError}
                 />
             )
         }

@@ -425,24 +425,34 @@ export async function fetchSSE(input: string, options: FetchSSEOptions) {
         }
 
         const unauth = resp.data.includes('401') && resp.data.includes('Unauthorized')
+        const isRefresh = resp.url.includes('refresh')
         if (unauth) {
-            // refresh token and retry
-            const browser = await getBrowser()
-            const { tokens } = await browser.storage.local.get(['tokens'])
-            if (tokens.refreshToken) {
-                const newTokens = await gptEditService.refreshToken(tokens.refreshToken)
+            if (isRefresh) {
+                onError('Unauthorized')
+            } else {
+                // refresh token and retry
+                const browser = await getBrowser()
+                const { tokens } = await browser.storage.local.get(['tokens'])
+                if (tokens.refreshToken) {
+                    try {
+                        const newTokens = await gptEditService.refreshToken(tokens.refreshToken)
 
-                if (newTokens) {
-                    await browser.storage.local.set({ tokens: newTokens })
-                    fetchSSE(input, {
-                        ...options,
-                        headers: {
-                            ...options.headers,
-                            Authorization: `Bearer ${newTokens.accessToken}`,
-                        },
-                    })
-                } else {
-                    onError('Unauthorized')
+                        if (newTokens) {
+                            await browser.storage.local.set({ tokens: newTokens })
+                            fetchSSE(input, {
+                                ...options,
+                                headers: {
+                                    ...options.headers,
+                                    Authorization: `Bearer ${newTokens.accessToken}`,
+                                },
+                            })
+                        } else {
+                            onError('Unauthorized')
+                        }
+                    } catch (e) {
+                        console.error(e)
+                        onError('Unauthorized')
+                    }
                 }
             }
         }
@@ -501,4 +511,17 @@ export async function getUserInfo() {
         ...tokens,
         ...userInfo,
     }
+}
+
+export async function removeUserInfo() {
+    interface INewBrowser extends IBrowser {
+        storage: {
+            local: ISync
+            sync: ISync
+        }
+    }
+
+    const browser = (await getBrowser()) as unknown as INewBrowser
+    await browser.storage.local.set({ userInfo: {} })
+    await browser.storage.local.set({ tokens: {} })
 }
