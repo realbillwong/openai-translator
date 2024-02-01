@@ -217,6 +217,7 @@ export async function translate(query: TranslateQuery) {
         console.debug('sourceLang', sourceLangName)
         console.debug('targetLang', targetLangName)
         const toChinese = chineseLangCodes.indexOf(targetLangCode) >= 0
+        const fromChinese = chineseLangCodes.indexOf(sourceLangCode) >= 0
         const targetLangConfig = getLangConfig(targetLangCode)
         const sourceLangConfig = getLangConfig(sourceLangCode)
         console.debug('Source language is', sourceLangConfig)
@@ -251,12 +252,31 @@ export async function translate(query: TranslateQuery) {
                 assistantPrompts = targetLangConfig.genAssistantPrompts()
                 commandPrompt = targetLangConfig.genCommandPrompt(sourceLangConfig)
                 contentPrompt = query.text
+                if (!query.writing && toChinese) {
+                    rolePrompt = oneLineTrim`
+                    你是一名精通简体中文的专业翻译，尤其擅长将英语翻译成浅显易懂、语句通顺、符合中文表达习惯的文本。
+                    请将给到的文本意译成${targetLangName}，注意要保留术语（一定要在术语前后增加半角空格)，保持原有段落格式不变，遵守原意。
+                    不要遗漏任何信息，不要对内容进行解释。
+                    `
+                    commandPrompt = '好的，我明白了，请给我文本内容。'
+                    contentPrompt = query.text
+                }
+                if (!query.writing && fromChinese) {
+                    rolePrompt = oneLineTrim`
+                    You are a professional translator proficient in simplified Chinese,
+                    especially good at translating Chinese into authentic English sentences that can accurately restore the original meaning.
+                    Please translate the text into ${targetLangName} without explanation.
+                    `
+                    commandPrompt = 'I understand. Please give me the text.'
+                    contentPrompt = query.text
+                }
                 if (!query.writing && query.text.length < 5 && toChinese) {
                     // 当用户的默认语言为中文时，查询中文词组（不超过5个字），展示多种翻译结果，并阐述适用语境。
                     rolePrompt = codeBlock`
                     ${oneLineTrim`
-                    你是一个资深翻译专家，精通多国语言，擅长学术翻译，
-                    请将给到的文本意译成${targetLangName}。
+                    你是一名精通简体中文的专业翻译，尤其擅长将英语翻译成浅显易懂、语句通顺、符合中文表达习惯的文本。
+                    请将给到的文本意译成${targetLangName}，注意要保留原有段落格式不变，保留术语，遵守原意。
+                    不要遗漏任何信息，不要对内容进行解释。
                     请列出3种（如果有）最常用翻译结果：单词或短语，
                     并列出对应的适用语境（用中文阐述）、音标或转写、词性、双语示例。
                     按照下面格式用中文阐述：`}
@@ -274,15 +294,13 @@ export async function translate(query: TranslateQuery) {
                         // 单词模式，可以更详细的翻译结果，包括：音标、词性、含义、双语示例。
                         rolePrompt = codeBlock`
                         ${oneLineTrim`
-                        你是一个资深翻译专家，精通多国语言，擅长学术翻译。请对给出的文本进行意译，只需要翻译不需要解释。
-                        当且仅当文本只有一个单词时，
-                        请给出单词原始形态（如果有）、
-                        单词的语种、
-                        ${targetLangConfig.phoneticNotation && '对应的音标或转写、'}
-                        所有含义（含词性）、
-                        双语示例，至少三条例句。
-                        如果你认为单词拼写错误，请提示我最可能的正确拼写，
-                        否则请严格按照下面格式给到翻译结果：
+                            当给到的文本只是一个单词的时候，你需要表现得像一个专业的${sourceLangName}-${targetLangName}词典，
+                            你需要给出单词的原始形态（如果有）、单词的语种、
+                            ${targetLangConfig.phoneticNotation && '对应的音标或转写、'}
+                            所有含义（含词性）、
+                            双语例句（至少3条）和词源。
+                            如果你认为单词拼写错误，请提示我最可能的正确拼写，
+                            否则请严格按照下面格式给到翻译结果：
                         `}
                             <单词>
                             [<语种>]· / ${targetLangConfig.phoneticNotation && `<${targetLangConfig.phoneticNotation}>`}
@@ -292,12 +310,13 @@ export async function translate(query: TranslateQuery) {
                             词源：
                             <词源>
                         `
-                        commandPrompt = '好的，我明白了，请给我这个单词。'
-                        contentPrompt = `单词是：${query.text}`
+                        commandPrompt = '好的，我明白了，请给我文本内容。'
+                        contentPrompt = `文本内容是：${query.text}`
                     } else {
                         const isSameLanguage = sourceLangCode === targetLangCode
                         rolePrompt = codeBlock`${oneLine`
-                            You are a professional translation engine.
+                            You are a professional translator proficient in simplified Chinese,
+                            especially good at translating Chinese into authentic English sentences that can accurately restore the original meaning.
                             Please translate the text into ${targetLangName} without explanation.
                             When the text has only one word,
                             please act as a professional
@@ -329,8 +348,8 @@ Examples:
 <index>. <sentence>(<sentence translation>)
 Etymology:
 <etymology>`
-                        commandPrompt = 'I understand. Please give me the word.'
-                        contentPrompt = `The word is: ${query.text}`
+                        commandPrompt = 'I understand. Please give me the text.'
+                        contentPrompt = `The text is: ${query.text}`
                     }
                 }
                 if (!query.writing && query.selectedWord) {
