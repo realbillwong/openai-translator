@@ -10,7 +10,7 @@ import { format } from 'date-fns'
 import { Button } from 'baseui-sd/button'
 import { List, arrayMove } from 'baseui-sd/dnd-list'
 import { RiDeleteBinLine } from 'react-icons/ri'
-import { createElement, useReducer, useState } from 'react'
+import { createElement, useCallback, useReducer, useState } from 'react'
 import * as mdIcons from 'react-icons/md'
 import { Action } from '../internal-services/db'
 import { Modal, ModalBody, ModalButton, ModalFooter, ModalHeader } from 'baseui-sd/modal'
@@ -18,6 +18,8 @@ import { ActionForm } from './ActionForm'
 import { IconType } from 'react-icons'
 import { isDesktopApp } from '../utils'
 import { MdArrowDownward, MdArrowUpward } from 'react-icons/md'
+import { useSettings } from '../hooks/useSettings'
+import { emit } from '@tauri-apps/api/event'
 
 const useStyles = createUseStyles({
     root: () => ({
@@ -145,7 +147,7 @@ export interface IActionManagerProps {
 }
 
 export function ActionManager({ draggable = true }: IActionManagerProps) {
-    const [refreshActionsFlag, refreshActions] = useReducer((x: number) => x + 1, 0)
+    const [refreshActionsFlag, changeRefreshActionsFlag] = useReducer((x: number) => x + 1, 0)
     const { t } = useTranslation()
     const { theme, themeType } = useTheme()
     const styles = useStyles({ theme, themeType })
@@ -153,6 +155,15 @@ export function ActionManager({ draggable = true }: IActionManagerProps) {
     const [showActionForm, setShowActionForm] = useState(false)
     const [updatingAction, setUpdatingAction] = useState<Action>()
     const [deletingAction, setDeletingAction] = useState<Action>()
+    const { settings } = useSettings()
+
+    const refreshActions = useCallback(() => {
+        if (!isDesktopApp()) {
+            changeRefreshActionsFlag()
+            return
+        }
+        emit('refresh-actions', {})
+    }, [])
 
     return (
         <div
@@ -161,7 +172,13 @@ export function ActionManager({ draggable = true }: IActionManagerProps) {
                 width: !draggable ? '800px' : undefined,
             }}
         >
-            <div className={styles.header} data-tauri-drag-region>
+            <div
+                className={styles.header}
+                data-tauri-drag-region
+                style={{
+                    backgroundColor: settings.enableBackgroundBlur ? 'transparent' : undefined,
+                }}
+            >
                 <div className={styles.iconContainer}>
                     <img data-tauri-drag-region className={styles.icon} src={icon} />
                     <div className={styles.iconText}>{t('Action Manager')}</div>
@@ -187,6 +204,14 @@ export function ActionManager({ draggable = true }: IActionManagerProps) {
             </div>
             <div className={styles.actionList}>
                 <List
+                    overrides={{
+                        Item: {
+                            style: {
+                                backgroundColor: 'transparent',
+                                // backgroundColor: color(theme.colors.backgroundPrimary).alpha(0.9).lighten(0.8).string(),
+                            },
+                        },
+                    }}
                     onChange={async ({ oldIndex, newIndex }) => {
                         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                         const newActions = arrayMove(actions!, oldIndex, newIndex)
@@ -199,9 +224,7 @@ export function ActionManager({ draggable = true }: IActionManagerProps) {
                                 }
                             })
                         )
-                        if (!isDesktopApp()) {
-                            refreshActions()
-                        }
+                        refreshActions()
                     }}
                     items={actions?.map((action, idx) => (
                         <div key={action.id} className={styles.actionItem}>
@@ -252,9 +275,7 @@ export function ActionManager({ draggable = true }: IActionManagerProps) {
                                                         }
                                                     })
                                                 )
-                                                if (!isDesktopApp()) {
-                                                    refreshActions()
-                                                }
+                                                refreshActions()
                                             }}
                                         >
                                             <MdArrowUpward size={12} />
@@ -274,9 +295,7 @@ export function ActionManager({ draggable = true }: IActionManagerProps) {
                                                         }
                                                     })
                                                 )
-                                                if (!isDesktopApp()) {
-                                                    refreshActions()
-                                                }
+                                                refreshActions()
                                             }}
                                         >
                                             <MdArrowDownward size={12} />
@@ -333,9 +352,7 @@ export function ActionManager({ draggable = true }: IActionManagerProps) {
                         action={updatingAction}
                         onSubmit={() => {
                             setShowActionForm(false)
-                            if (!isDesktopApp()) {
-                                refreshActions()
-                            }
+                            refreshActions()
                         }}
                     />
                 </ModalBody>
@@ -367,9 +384,7 @@ export function ActionManager({ draggable = true }: IActionManagerProps) {
                         size='compact'
                         onClick={async () => {
                             await actionService.delete(deletingAction?.id as number)
-                            if (!isDesktopApp()) {
-                                refreshActions()
-                            }
+                            refreshActions()
                             setDeletingAction(undefined)
                         }}
                     >

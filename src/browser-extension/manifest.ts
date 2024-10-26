@@ -38,7 +38,7 @@ export function getManifest(browser: 'firefox' | 'chromium') {
             service_worker: 'src/browser-extension/background/index.ts',
         },
 
-        permissions: ['storage', 'contextMenus'],
+        permissions: ['storage', 'contextMenus', 'webRequest'],
 
         commands: {
             'open-popup': {
@@ -66,6 +66,11 @@ export function getManifest(browser: 'firefox' | 'chromium') {
             'https://*.microsoft.com/',
             'https://*.google.com/',
             'https://*.googleapis.com/',
+            'https://*.moonshot.cn/',
+            'https://*.volces.com/',
+            'https://*.chatglm.cn/',
+            'https://*.cohere.ai/',
+            'https://*.deepseek.com/',
         ],
     }
 

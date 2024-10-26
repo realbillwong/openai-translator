@@ -12,6 +12,7 @@ import { Button } from 'baseui-sd/button'
 import { TranslateMode } from '../translate'
 import { Select, Value, Option } from 'baseui-sd/select'
 import { Checkbox } from 'baseui-sd/checkbox'
+import NumberInput from './NumberInput'
 import { supportedLanguages } from '../lang'
 import { createUseStyles } from 'react-jss'
 import { ISettings, IThemedStyleProps, LanguageDetectionEngine, ThemeType } from '../types'
@@ -72,31 +73,6 @@ function LanguageSelector({ value, onChange, onBlur }: ILanguageSelectorProps) {
 interface ITranslateModeSelectorProps {
     value?: TranslateMode | 'nop'
     onChange?: (value: TranslateMode | 'nop') => void
-    onBlur?: () => void
-}
-
-interface AlwaysShowIconsCheckboxProps {
-    value?: boolean
-    onChange?: (value: boolean) => void
-    onBlur?: () => void
-}
-
-function AlwaysShowIconsCheckbox({ value, onChange, onBlur }: AlwaysShowIconsCheckboxProps) {
-    return (
-        <Checkbox
-            checkmarkType='toggle_round'
-            checked={value}
-            onChange={(e) => {
-                onChange?.(e.target.checked)
-                onBlur?.()
-            }}
-        />
-    )
-}
-
-interface AutoTranslateCheckboxProps {
-    value?: boolean
-    onChange?: (value: boolean) => void
     onBlur?: () => void
 }
 
@@ -224,6 +200,7 @@ function Ii18nSelector({ value, onChange, onBlur }: Ii18nSelectorProps) {
         { label: '繁體中文', id: 'zh-Hant' },
         { label: '日本語', id: 'ja' },
         { label: 'ไทย', id: 'th' },
+        { label: 'Türkçe', id: 'tr' },
     ]
 
     return (
@@ -572,7 +549,6 @@ export function InnerSettings({ onSave, showFooter = false, headerPromotionID }:
     }, [prevValues, values])
 
     const isDesktopApp = utils.isDesktopApp()
-    const isMacOS = navigator.userAgent.includes('Mac OS X')
 
     const styles = useStyles({ theme, themeType, isDesktopApp })
 
@@ -659,7 +635,7 @@ export function InnerSettings({ onSave, showFooter = false, headerPromotionID }:
                     position: utils.isBrowserExtensionOptions() ? 'static' : 'fixed',
                     left: 0,
                     top: 0,
-                    zIndex: 1001,
+                    zIndex: 999,
                     width: '100%',
                     display: 'flex',
                     flexDirection: 'column',
@@ -702,6 +678,8 @@ export function InnerSettings({ onSave, showFooter = false, headerPromotionID }:
                 </div>
             </nav>
             <Form
+                autoComplete='off'
+                autoCapitalize='off'
                 form={form}
                 style={{
                     padding: '20px 25px',
@@ -727,6 +705,21 @@ export function InnerSettings({ onSave, showFooter = false, headerPromotionID }:
                         </FormItem>
                         <FormItem name='themeType' label={t('Theme')}>
                             <ThemeTypeSelector onBlur={onBlur} />
+                        </FormItem>
+                        <FormItem
+                            style={{
+                                display: isDesktopApp ? 'block' : 'none',
+                            }}
+                            name='enableBackgroundBlur'
+                            label={t('Window background blur')}
+                            caption={t(
+                                "If the window background blur effect is enabled, please ensure to set the 'Theme' to 'Follow the System', as it is currently not possible to manually switch between light and dark themes when the window background blur is active."
+                            )}
+                        >
+                            <MyCheckbox onBlur={onBlur} />
+                        </FormItem>
+                        <FormItem name='fontSize' label={t('Font size')}>
+                            <NumberInput />
                         </FormItem>
                         <FormItem
                             name='alwaysShowIcons'
@@ -755,18 +748,6 @@ export function InnerSettings({ onSave, showFooter = false, headerPromotionID }:
                                 )
                             }
                         >
-                            <AlwaysShowIconsCheckbox onBlur={onBlur} />
-                        </FormItem>
-                        <FormItem
-                            style={{
-                                display: isDesktopApp && isMacOS ? 'block' : 'none',
-                            }}
-                            name='allowUsingClipboardWhenSelectedTextNotAvailable'
-                            label={t('Using clipboard')}
-                            caption={t(
-                                'Allow using the clipboard to get the selected text when the selected text is not available'
-                            )}
-                        >
                             <MyCheckbox onBlur={onBlur} />
                         </FormItem>
                         <FormItem name='autoTranslate' label={t('Auto Translate')}>
@@ -791,10 +772,12 @@ export function InnerSettings({ onSave, showFooter = false, headerPromotionID }:
                         )}
                         <FormItem
                             style={{
-                                display: isDesktopApp && isMacOS ? 'block' : 'none',
+                                display: isDesktopApp ? 'block' : 'none',
                             }}
                             name='hideTheIconInTheDock'
-                            label={t('Hide the icon in the Dock bar')}
+                            label={
+                                utils.isMacOS ? t('Hide the icon in the Dock bar') : t('Hide the icon in the taskbar')
+                            }
                         >
                             <MyCheckbox onBlur={onBlur} />
                         </FormItem>

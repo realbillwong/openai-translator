@@ -13,6 +13,8 @@ mod windows;
 mod writing;
 
 use config::get_config;
+use debug_print::debug_println;
+use get_selected_text::get_selected_text;
 use parking_lot::Mutex;
 use serde_json::json;
 use std::env;
@@ -21,12 +23,14 @@ use sysinfo::{CpuExt, System, SystemExt};
 use tauri_plugin_aptabase::EventTracker;
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_updater::UpdaterExt;
-use windows::get_translator_window;
+use tauri_specta::Event;
+use tray::{PinnedFromTrayEvent, PinnedFromWindowEvent};
+use windows::{get_translator_window, CheckUpdateEvent, CheckUpdateResultEvent};
 
-use crate::config::{clear_config_cache, get_config_content};
+use crate::config::{clear_config_cache, get_config_content, ConfigUpdatedEvent};
 use crate::fetch::fetch_stream;
 use crate::lang::detect_lang;
-use crate::ocr::{cut_image, finish_ocr, ocr_command, screenshot};
+use crate::ocr::{cut_image, finish_ocr, screenshot, start_ocr};
 use crate::windows::{
     get_translator_window_always_on_top, hide_translator_window, show_action_manager_window,
     show_translator_window_command, show_translator_window_with_selected_text_command,
@@ -50,7 +54,7 @@ pub static PREVIOUS_RELEASE_TIME: Mutex<u128> = Mutex::new(0);
 pub static PREVIOUS_RELEASE_POSITION: Mutex<(i32, i32)> = Mutex::new((0, 0));
 pub static RELEASE_THREAD_ID: Mutex<u32> = Mutex::new(0);
 
-#[derive(Clone, serde::Serialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateResult {
     version: String,
@@ -61,13 +65,13 @@ pub struct UpdateResult {
 pub static UPDATE_RESULT: Mutex<Option<Option<UpdateResult>>> = Mutex::new(None);
 
 #[tauri::command]
+#[specta::specta]
 fn get_update_result() -> (bool, Option<UpdateResult>) {
     if UPDATE_RESULT.lock().is_none() {
         return (false, None);
     }
     return (true, UPDATE_RESULT.lock().clone().unwrap());
 }
-
 #[cfg(target_os = "macos")]
 fn query_accessibility_permissions() -> bool {
     let trusted = macos_accessibility_client::accessibility::application_is_trusted_with_prompt();
@@ -99,16 +103,20 @@ fn launch_ipc_server(server: &Server) {
 }
 
 fn bind_mouse_hook() {
-    let mut mouse_manager = Mouse::new();
-
     if !query_accessibility_permissions() {
         return;
     }
 
+    // Mouse event hook requires `sudo` permission on linux.
+    // Let's just skip it.
+    if cfg!(target_os = "linux") {
+        println!("mouse event hook skipped in linux!");
+        return;
+    }
+
+    let mut mouse_manager = Mouse::new();
+
     let hook_result = mouse_manager.hook(Box::new(|event| {
-        if cfg!(target_os = "linux") {
-            return;
-        }
         match event {
             mouce::common::MouseEvent::Press(mouce::common::MouseButton::Left) => {
                 let config = config::get_config().unwrap();
@@ -161,7 +169,7 @@ fn bind_mouse_hook() {
                     is_text_selected_event = true;
                 }
                 let is_click_on_thumb = match APP_HANDLE.get() {
-                    Some(handle) => match handle.get_window(windows::THUMB_WIN_NAME) {
+                    Some(handle) => match handle.get_webview_window(windows::THUMB_WIN_NAME) {
                         Some(window) => match window.outer_position() {
                             Ok(position) => {
                                 let scale_factor = window.scale_factor().unwrap_or(1.0);
@@ -207,8 +215,8 @@ fn bind_mouse_hook() {
                     },
                     None => false,
                 };
-                // println!("is_text_selected_event: {}", is_text_selected_event);
-                // println!("is_click_on_thumb: {}", is_click_on_thumb);
+                // debug_println!("is_text_selected_event: {}", is_text_selected_event);
+                // debug_println!("is_click_on_thumb: {}", is_click_on_thumb);
                 if !is_text_selected_event && !is_click_on_thumb {
                     windows::close_thumb();
                     // println!("not text selected event");
@@ -222,19 +230,26 @@ fn bind_mouse_hook() {
 
                 if !is_click_on_thumb {
                     if RELEASE_THREAD_ID.is_locked() {
-                        // println!("release thread is locked");
                         return;
                     }
                     std::thread::spawn(move || {
+                        #[cfg(target_os = "macos")]
+                        {
+                            if !utils::is_valid_selected_frame().unwrap_or(false) {
+                                debug_println!("No valid selected frame");
+                                windows::close_thumb();
+                                return;
+                            }
+                        }
+
                         let _lock = RELEASE_THREAD_ID.lock();
-                        let selected_text = utils::get_selected_text().unwrap_or_default();
+                        let selected_text = get_selected_text().unwrap_or_default();
                         if !selected_text.is_empty() {
                             {
                                 *SELECTED_TEXT.lock() = selected_text;
                             }
                             windows::show_thumb(x, y);
                         } else {
-                            // println!("selected text is empty");
                             windows::close_thumb();
                         }
                     });
@@ -244,17 +259,7 @@ fn bind_mouse_hook() {
                     if !selected_text.is_empty() {
                         let window = windows::show_translator_window(false, true, false);
                         utils::send_text(selected_text);
-                        if cfg!(target_os = "windows") {
-                            window.set_always_on_top(true).unwrap();
-                            let always_on_top = ALWAYS_ON_TOP.load(Ordering::Acquire);
-                            if !always_on_top {
-                                std::thread::spawn(move || {
-                                    window.set_always_on_top(false).unwrap();
-                                });
-                            }
-                        } else {
-                            window.set_focus().unwrap();
-                        }
+                        window.set_focus().unwrap();
                     }
                 }
             }
@@ -281,6 +286,42 @@ fn main() {
         let vendor_id = cpu.vendor_id().to_string();
         *CPU_VENDOR.lock() = vendor_id;
     }
+
+    let (invoke_handler, register_events) = {
+        let builder = tauri_specta::ts::builder()
+            .commands(tauri_specta::collect_commands![
+                get_config_content,
+                get_update_result,
+                clear_config_cache,
+                show_translator_window_command,
+                show_translator_window_with_selected_text_command,
+                show_action_manager_window,
+                get_translator_window_always_on_top,
+                fetch_stream,
+                writing_command,
+                write_to_input,
+                finish_writing,
+                detect_lang,
+                screenshot,
+                hide_translator_window,
+                start_ocr,
+                finish_ocr,
+                cut_image,
+            ])
+            .events(tauri_specta::collect_events![
+                CheckUpdateEvent,
+                CheckUpdateResultEvent,
+                PinnedFromWindowEvent,
+                PinnedFromTrayEvent,
+                ConfigUpdatedEvent
+            ])
+            .config(specta::ts::ExportConfig::default().formatter(specta::ts::formatter::prettier));
+
+        #[cfg(debug_assertions)]
+        let builder = builder.path("../src/tauri/bindings.ts");
+
+        builder.build().unwrap()
+    };
 
     let mut app = tauri::Builder::default()
         .plugin(
@@ -324,18 +365,22 @@ fn main() {
             tray::create_tray(&app_handle)?;
             app_handle.plugin(tauri_plugin_global_shortcut::Builder::new().build())?;
             app_handle.plugin(tauri_plugin_updater::Builder::new().build())?;
+            // create thumb window
+            let _ = windows::get_thumb_window(0, 0);
             if silently {
-                let window = get_translator_window(false, false, false);
-                window.unminimize().unwrap();
-                window.hide().unwrap();
+                // create translator window
+                let _ = get_translator_window(false, false, false);
+                windows::do_hide_translator_window();
+                debug_println!("translator window is hidden");
             } else {
                 let window = get_translator_window(false, false, false);
                 window.set_focus().unwrap();
                 window.show().unwrap();
             }
             if !query_accessibility_permissions() {
-                let window = app.get_window(TRANSLATOR_WIN_NAME).unwrap();
-                window.minimize().unwrap();
+                if let Some(window) = app.get_webview_window(TRANSLATOR_WIN_NAME) {
+                    window.minimize().unwrap();
+                }
                 app.notification()
                     .builder()
                     .title("Accessibility permissions")
@@ -364,7 +409,7 @@ fn main() {
             tauri::async_runtime::spawn(async move {
                 loop {
                     std::thread::sleep(std::time::Duration::from_secs(60 * 10));
-                    let mut builder = handle.updater_builder();
+                    let builder = handle.updater_builder();
                     let updater = builder.build().unwrap();
 
                     match updater.check().await {
@@ -390,35 +435,30 @@ fn main() {
                     }
                 }
             });
+            register_events(app);
 
+            let handle = app_handle.clone();
+            PinnedFromWindowEvent::listen_any(app_handle, move |event| {
+                let pinned = event.payload.pinned();
+                ALWAYS_ON_TOP.store(*pinned, Ordering::Release);
+                tray::create_tray(&handle).unwrap();
+            });
+
+            let handle = app_handle.clone();
+            ConfigUpdatedEvent::listen_any(app_handle, move |_event| {
+                clear_config_cache();
+                tray::create_tray(&handle).unwrap();
+            });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![
-            get_update_result,
-            get_config_content,
-            clear_config_cache,
-            show_translator_window_command,
-            show_translator_window_with_selected_text_command,
-            show_action_manager_window,
-            get_translator_window_always_on_top,
-            ocr_command,
-            fetch_stream,
-            writing_command,
-            write_to_input,
-            finish_writing,
-            detect_lang,
-            cut_image,
-            finish_ocr,
-            screenshot,
-            hide_translator_window,
-        ])
+        .invoke_handler(invoke_handler)
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
 
     #[cfg(target_os = "macos")]
     {
         let config = config::get_config_by_app(app.handle()).unwrap();
-        if config.hide_the_icon_in_the_dock.unwrap_or(false) {
+        if config.hide_the_icon_in_the_dock.unwrap_or(true) {
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
         } else {
             app.set_activation_policy(tauri::ActivationPolicy::Regular);
@@ -435,7 +475,7 @@ fn main() {
             bind_mouse_hook();
             let handle = app.clone();
             tauri::async_runtime::spawn(async move {
-                let mut builder = handle.updater_builder();
+                let builder = handle.updater_builder();
                 let updater = builder.build().unwrap();
 
                 match updater.check().await {
@@ -479,16 +519,18 @@ fn main() {
                 return;
             }
 
-            #[cfg(target_os = "macos")]
-            {
-                tauri::AppHandle::hide(&app.app_handle()).unwrap();
-            }
-            #[cfg(not(target_os = "macos"))]
-            {
-                let window = app.get_window(label.as_str()).unwrap();
-                window.hide().unwrap();
-            }
+            windows::do_hide_translator_window();
+
             api.prevent_close();
+        }
+        #[cfg(target_os = "macos")]
+        tauri::RunEvent::Reopen {
+            has_visible_windows,
+            ..
+        } => {
+            if !has_visible_windows {
+                windows::show_translator_window(false, false, false);
+            }
         }
         _ => {}
     });

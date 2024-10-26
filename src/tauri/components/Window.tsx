@@ -1,5 +1,6 @@
-import { useCallback, useEffect } from 'react'
-import { getCurrent } from '@tauri-apps/api/window'
+import { useCallback, useEffect, useState } from 'react'
+import { getCurrent } from '@tauri-apps/api/webviewWindow'
+import { Effect } from '@tauri-apps/api/window'
 import { useTheme } from '../../common/hooks/useTheme'
 import { Provider as StyletronProvider } from 'styletron-react'
 import { BaseProvider } from 'baseui-sd'
@@ -12,9 +13,26 @@ import { useTranslation } from 'react-i18next'
 import { useSettings } from '../../common/hooks/useSettings'
 import { IThemedStyleProps } from '../../common/types'
 import { createUseStyles } from 'react-jss'
-import { invoke } from '@tauri-apps/api/primitives'
 import { open } from '@tauri-apps/plugin-shell'
 import { usePinned } from '../../common/hooks/usePinned'
+import { isMacOS, isTauri, isWindows } from '@/common/utils'
+import { useSetAtom } from 'jotai'
+
+import { showSettingsAtom } from '@/common/store/setting'
+import { commands } from '../bindings'
+import { trackEvent } from '@aptabase/tauri'
+
+addEventListener('unhandledrejection', (e) => {
+    trackEvent('promise_rejected', {
+        message: (e.reason?.message || e.reason || e).toString(),
+    })
+})
+
+window.addEventListener('error', (e) => {
+    trackEvent('js_error', {
+        message: e.message,
+    })
+})
 
 const engine = new Styletron({
     prefix: `${PREFIX}-styletron-`,
@@ -28,6 +46,26 @@ export interface IWindowProps {
 
 export function Window(props: IWindowProps) {
     const { theme } = useTheme()
+
+    const setShowSettings = useSetAtom(showSettingsAtom)
+
+    useEffect(() => {
+        async function handleKeyPress(event: KeyboardEvent) {
+            if ((event.metaKey || event.ctrlKey) && event.key === ',') {
+                event.preventDefault()
+                if (isTauri()) {
+                    setShowSettings((prevIsVisible) => !prevIsVisible)
+                }
+            }
+        }
+
+        document.addEventListener('keydown', handleKeyPress)
+
+        return () => {
+            document.removeEventListener('keydown', handleKeyPress)
+        }
+    }, [setShowSettings])
+
     return (
         <ErrorBoundary FallbackComponent={ErrorFallback}>
             <StyletronProvider value={engine}>
@@ -65,22 +103,61 @@ const useStyles = createUseStyles({
     }),
 })
 
+interface ITitlebarContainerProps {
+    children: React.ReactNode
+    windowsTitlebarDisableDarkMode?: boolean
+}
+
+export function TitlebarContainer(props: ITitlebarContainerProps) {
+    const { theme, themeType } = useTheme()
+    const styles = useStyles({ theme, themeType, windowsTitlebarDisableDarkMode: props.windowsTitlebarDisableDarkMode })
+
+    if (isMacOS) {
+        return (
+            <div className={styles.titlebar} data-tauri-drag-region>
+                {props.children}
+            </div>
+        )
+    }
+
+    return <div className={styles.titlebar}>{props.children}</div>
+}
+
 export function InnerWindow(props: IWindowProps) {
     const { theme, themeType } = useTheme()
     const styles = useStyles({ theme, themeType, windowsTitlebarDisableDarkMode: props.windowsTitlebarDisableDarkMode })
-    const isMacOS = navigator.userAgent.includes('Mac OS X')
-    const isWindows = navigator.userAgent.includes('Windows')
+
     const { pinned, setPinned } = usePinned()
     const { i18n } = useTranslation()
     const { settings } = useSettings()
+
+    const [backgroundBlur, setBackgroundBlur] = useState(false)
+    useEffect(() => {
+        const appWindow = getCurrent()
+        if (settings.enableBackgroundBlur) {
+            //  TODO: It currently seems that the light/dark mode of the mica cannot be manually adjusted.
+            // link: https://beta.tauri.app/references/v2/js/core/namespacewindow/#mica
+            if (isMacOS) {
+                appWindow.setEffects({ effects: [Effect.WindowBackground] })
+            } else if (isWindows) {
+                appWindow.setEffects({ effects: [Effect.Mica] })
+            }
+            setBackgroundBlur(true)
+        } else {
+            if (isMacOS || isWindows) {
+                appWindow.clearEffects()
+            }
+            setBackgroundBlur(false)
+        }
+    }, [settings.enableBackgroundBlur, settings.themeType])
 
     useEffect(() => {
         if (!props.isTranslatorWindow) {
             return
         }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        invoke('get_translator_window_always_on_top').then((pinned: any) => {
-            return setPinned(pinned)
+        commands.getTranslatorWindowAlwaysOnTop().then((pinned: any) => {
+            return setPinned(() => pinned)
         })
     }, [props.isTranslatorWindow, setPinned])
 
@@ -106,32 +183,6 @@ export function InnerWindow(props: IWindowProps) {
         [setPinned]
     )
 
-    const handleMinimize = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-        e.preventDefault()
-        e.stopPropagation()
-        const appWindow = getCurrent()
-        appWindow.minimize()
-    }, [])
-
-    const handleMaximize = useCallback(async (e: React.MouseEvent<HTMLDivElement>) => {
-        e.preventDefault()
-        e.stopPropagation()
-        const appWindow = getCurrent()
-        const isMaximized = await appWindow.isMaximized()
-        if (isMaximized) {
-            await appWindow.unmaximize()
-        } else {
-            await appWindow.maximize()
-        }
-    }, [])
-
-    const handleClose = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-        e.preventDefault()
-        e.stopPropagation()
-        const appWindow = getCurrent()
-        appWindow.hide()
-    }, [])
-
     let svgPathColor = theme.colors.contentSecondary
 
     if (props.windowsTitlebarDisableDarkMode) {
@@ -142,7 +193,7 @@ export function InnerWindow(props: IWindowProps) {
         <div
             style={{
                 position: 'relative',
-                background: theme.colors.backgroundPrimary,
+                background: backgroundBlur ? 'transparent' : theme.colors.backgroundPrimary,
                 font: '14px/1.6 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,Arial,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji',
                 minHeight: '100vh',
             }}
@@ -158,66 +209,26 @@ export function InnerWindow(props: IWindowProps) {
                 }
             }}
         >
-            <div className={styles.titlebar} data-tauri-drag-region>
-                {isMacOS && (
-                    <>
-                        <div className={styles.titlebarButton} onClick={handlePin}>
-                            <svg xmlns='http://www.w3.org/2000/svg' width='1em' height='1em' viewBox='0 0 28 28'>
-                                {pinned ? (
-                                    <path
-                                        fill={svgPathColor}
-                                        fillRule='evenodd'
-                                        d='M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1l1-1v-7H19v-2c-1.66 0-3-1.34-3-3z'
-                                    />
-                                ) : (
-                                    <path
-                                        fill={svgPathColor}
-                                        d='M14 4v5c0 1.12.37 2.16 1 3H9c.65-.86 1-1.9 1-3V4h4m3-2H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1l1-1v-7H19v-2c-1.66 0-3-1.34-3-3V4h1c.55 0 1-.45 1-1s-.45-1-1-1z'
-                                    />
-                                )}
-                            </svg>
-                        </div>
-                    </>
-                )}
-                {isWindows && (
-                    <>
-                        <div className={styles.titlebarButton} onClick={handlePin}>
-                            <svg xmlns='http://www.w3.org/2000/svg' width='1em' height='1em' viewBox='0 0 24 24'>
-                                {pinned ? (
-                                    <path
-                                        fill={svgPathColor}
-                                        fillRule='evenodd'
-                                        d='M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1l1-1v-7H19v-2c-1.66 0-3-1.34-3-3z'
-                                    />
-                                ) : (
-                                    <path
-                                        fill={svgPathColor}
-                                        d='M14 4v5c0 1.12.37 2.16 1 3H9c.65-.86 1-1.9 1-3V4h4m3-2H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1l1-1v-7H19v-2c-1.66 0-3-1.34-3-3V4h1c.55 0 1-.45 1-1s-.45-1-1-1z'
-                                    />
-                                )}
-                            </svg>
-                        </div>
-                        <div className={styles.titlebarButton} onClick={handleMinimize}>
-                            <svg xmlns='http://www.w3.org/2000/svg' width='1em' height='1em' viewBox='0 0 24 24'>
-                                <path fill={svgPathColor} d='M20 14H4v-4h16' />
-                            </svg>
-                        </div>
-                        <div className={styles.titlebarButton} onClick={handleMaximize}>
-                            <svg xmlns='http://www.w3.org/2000/svg' width='1em' height='1em' viewBox='0 0 24 24'>
-                                <path fill={svgPathColor} d='M4 4h16v16H4V4m2 4v10h12V8H6Z' />
-                            </svg>
-                        </div>
-                        <div className={styles.titlebarButton} onClick={handleClose}>
-                            <svg xmlns='http://www.w3.org/2000/svg' width='1em' height='1em' viewBox='0 0 24 24'>
+            {isMacOS && (
+                <TitlebarContainer windowsTitlebarDisableDarkMode={props.windowsTitlebarDisableDarkMode}>
+                    <div className={styles.titlebarButton} onClick={handlePin}>
+                        <svg xmlns='http://www.w3.org/2000/svg' width='1em' height='1em' viewBox='0 0 28 28'>
+                            {pinned ? (
                                 <path
                                     fill={svgPathColor}
-                                    d='M19 6.41L17.59 5L12 10.59L6.41 5L5 6.41L10.59 12L5 17.59L6.41 19L12 13.41L17.59 19L19 17.59L13.41 12L19 6.41Z'
+                                    fillRule='evenodd'
+                                    d='M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1l1-1v-7H19v-2c-1.66 0-3-1.34-3-3z'
                                 />
-                            </svg>
-                        </div>
-                    </>
-                )}
-            </div>
+                            ) : (
+                                <path
+                                    fill={svgPathColor}
+                                    d='M14 4v5c0 1.12.37 2.16 1 3H9c.65-.86 1-1.9 1-3V4h4m3-2H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1l1-1v-7H19v-2c-1.66 0-3-1.34-3-3V4h1c.55 0 1-.45 1-1s-.45-1-1-1z'
+                                />
+                            )}
+                        </svg>
+                    </div>
+                </TitlebarContainer>
+            )}
             {props.children}
         </div>
     )

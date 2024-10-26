@@ -6,10 +6,37 @@ use serde::{Deserialize, Serialize};
 
 use crate::APP_HANDLE;
 
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, specta::Type, tauri_specta::Event)]
+pub struct ConfigUpdatedEvent;
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum ProxyProtocol {
+    HTTP,
+    HTTPS,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct BasicAuth {
+    pub username: Option<String>,
+    pub password: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ProxyConfig {
+    pub enabled: Option<bool>,
+    pub protocol: Option<ProxyProtocol>,
+    pub server: Option<String>,
+    pub port: Option<String>,
+    pub basic_auth: Option<BasicAuth>,
+    pub no_proxy: Option<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
     pub hotkey: Option<String>,
+    pub display_window_hotkey: Option<String>,
     pub ocr_hotkey: Option<String>,
     pub writing_hotkey: Option<String>,
     pub writing_newline_hotkey: Option<String>,
@@ -18,6 +45,7 @@ pub struct Config {
     pub allow_using_clipboard_when_selected_text_not_available: Option<bool>,
     pub automatic_check_for_updates: Option<bool>,
     pub hide_the_icon_in_the_dock: Option<bool>,
+    pub proxy: Option<ProxyConfig>,
 }
 
 static CONFIG_CACHE: Mutex<Option<Config>> = Mutex::new(None);
@@ -28,6 +56,17 @@ pub fn get_config() -> Result<Config, Box<dyn std::error::Error>> {
 }
 
 pub fn get_config_by_app(app: &AppHandle) -> Result<Config, Box<dyn std::error::Error>> {
+    let conf = _get_config_by_app(app);
+    match conf {
+        Ok(conf) => Ok(conf),
+        Err(e) => {
+            println!("get config failed: {}", e);
+            Err(e)
+        }
+    }
+}
+
+pub fn _get_config_by_app(app: &AppHandle) -> Result<Config, Box<dyn std::error::Error>> {
     if let Some(config_cache) = &*CONFIG_CACHE.lock() {
         return Ok(config_cache.clone());
     }
@@ -38,16 +77,18 @@ pub fn get_config_by_app(app: &AppHandle) -> Result<Config, Box<dyn std::error::
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn clear_config_cache() {
     CONFIG_CACHE.lock().take();
 }
 
 #[tauri::command]
-pub fn get_config_content() -> Result<String, String> {
+#[specta::specta]
+pub fn get_config_content() -> String {
     if let Some(app) = APP_HANDLE.get() {
-        return get_config_content_by_app(app);
+        return get_config_content_by_app(app).unwrap();
     } else {
-        Err("Config directory not found".to_string())
+        return "{}".to_string();
     }
 }
 

@@ -1,6 +1,10 @@
 /* eslint-disable camelcase */
+import { urlJoin } from 'url-join-ts'
+import { getUniversalFetch } from '../universal-fetch'
 import { fetchSSE, getSettings } from '../utils'
-import { IEngine, IMessageRequest, IModel } from './interfaces'
+import { AbstractEngine } from './abstract-engine'
+import { IMessageRequest, IModel } from './interfaces'
+import qs from 'qs'
 
 const SAFETY_SETTINGS = [
     {
@@ -21,22 +25,51 @@ const SAFETY_SETTINGS = [
     },
 ]
 
-export class Gemini implements IEngine {
+export class Gemini extends AbstractEngine {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    async listModels(apiKey_: string | undefined): Promise<IModel[]> {
-        return [
-            {
-                id: 'gemini-pro',
-                name: 'gemini-pro',
+    async listModels(apiKey: string | undefined): Promise<IModel[]> {
+        if (!apiKey) {
+            return []
+        }
+        const settings = await getSettings()
+        const geminiAPIURL = settings.geminiAPIURL
+        const url =
+            urlJoin(geminiAPIURL, '/v1beta/models') +
+            qs.stringify({ key: apiKey, pageSize: 1000 }, { addQueryPrefix: true })
+        const fetcher = getUniversalFetch()
+        const resp = await fetcher(url, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
             },
-        ]
+        })
+        const jsn = await resp.json()
+        if (!jsn.models) {
+            return []
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return jsn.models.map((model: any) => {
+            const name = model.name.split('/').pop()
+            return {
+                id: name,
+                name: name,
+            }
+        })
+    }
+
+    async getModel() {
+        const settings = await getSettings()
+        return settings.geminiAPIModel
     }
 
     async sendMessage(req: IMessageRequest): Promise<void> {
         const settings = await getSettings()
         const apiKey = settings.geminiAPIKey
-        const model = settings.geminiAPIModel
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${apiKey}`
+        const geminiAPIURL = settings.geminiAPIURL
+        const model = await this.getModel()
+        const url =
+            urlJoin(geminiAPIURL, '/v1beta/models/', `${model}:streamGenerateContent`) +
+            qs.stringify({ key: apiKey }, { addQueryPrefix: true })
         const headers = {
             'Content-Type': 'application/json',
             'User-Agent':
@@ -48,49 +81,12 @@ export class Gemini implements IEngine {
                     role: 'user',
                     parts: [
                         {
-                            text: 'Hello.',
-                        },
-                    ],
-                },
-                {
-                    role: 'model',
-                    parts: [
-                        {
-                            text: req.rolePrompt,
-                        },
-                    ],
-                },
-                {
-                    role: 'user',
-                    parts: [
-                        {
-                            text: req.commandPrompt,
+                            text: req.rolePrompt ? req.rolePrompt + '\n\n' + req.commandPrompt : req.commandPrompt,
                         },
                     ],
                 },
             ],
             safetySettings: SAFETY_SETTINGS,
-        }
-
-        if (req.assistantPrompts) {
-            req.assistantPrompts.forEach((prompt) => {
-                body.contents.push({
-                    role: 'model',
-                    parts: [
-                        {
-                            text: 'Ok.',
-                        },
-                    ],
-                })
-                body.contents.push({
-                    role: 'user',
-                    parts: [
-                        {
-                            text: prompt,
-                        },
-                    ],
-                })
-            })
         }
 
         let hasError = false
@@ -100,7 +96,7 @@ export class Gemini implements IEngine {
             headers,
             body: JSON.stringify(body),
             signal: req.signal,
-            useJSONParser: true,
+            usePartialArrayJSONParser: true,
             onMessage: async (msg) => {
                 if (finished) return
                 let resp

@@ -1,11 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { event } from '@tauri-apps/api'
-import { getCurrent, PhysicalPosition, PhysicalSize } from '@tauri-apps/api/window'
+import { getCurrent } from '@tauri-apps/api/webviewWindow'
+import { PhysicalPosition, PhysicalSize } from '@tauri-apps/api/window'
 import { useEffect } from 'react'
+
+const positionKey = '_position'
+const sizeKey = '_size'
 
 export type WindowMemoProps = {
     size: boolean
     position: boolean
+    show: boolean
 }
 
 /**
@@ -17,7 +21,7 @@ export const useMemoWindow = (props: WindowMemoProps) => {
         const initWindow = async () => {
             try {
                 if (props.position) {
-                    const storagePosition = localStorage.getItem('_position')
+                    const storagePosition = localStorage.getItem(positionKey)
                     if (storagePosition) {
                         const { x, y } = JSON.parse(storagePosition)
                         if (x < 0 || y < 0) {
@@ -29,10 +33,10 @@ export const useMemoWindow = (props: WindowMemoProps) => {
                         await appWindow.center()
                     }
                 } else {
-                    localStorage.removeItem('_position')
+                    localStorage.removeItem(positionKey)
                 }
                 if (props.size) {
-                    const storageSize = localStorage.getItem('_size')
+                    const storageSize = localStorage.getItem(sizeKey)
                     if (storageSize) {
                         let { height, width } = JSON.parse(storageSize)
                         height = Math.max(height, 800)
@@ -40,37 +44,35 @@ export const useMemoWindow = (props: WindowMemoProps) => {
                         await appWindow.setSize(new PhysicalSize(width, height))
                     }
                 } else {
-                    localStorage.removeItem('_size')
+                    localStorage.removeItem(sizeKey)
                 }
             } catch (e) {
                 console.error(e)
             } finally {
-                await appWindow.unminimize()
-                await appWindow.setFocus()
-                await appWindow.show()
+                if (props.show) {
+                    await appWindow.unminimize()
+                    await appWindow.setFocus()
+                    await appWindow.show()
+                }
             }
         }
         initWindow()
-    }, [props.position, props.size])
+    }, [props.position, props.size, props.show])
 
     useEffect(() => {
         const appWindow = getCurrent()
         let unListenMove: (() => void) | undefined
         let unListenResize: (() => void) | undefined
-        event
-            .listen(event.TauriEvent.WINDOW_MOVED, (event: { windowLabel: string; payload: any }) => {
-                if (event.windowLabel === appWindow.label) {
-                    localStorage.setItem('_position', JSON.stringify(event.payload))
-                }
+        appWindow
+            .onMoved((event) => {
+                localStorage.setItem(positionKey, JSON.stringify(event.payload))
             })
             .then((unListen) => {
                 unListenMove = unListen
             })
-        event
-            .listen(event.TauriEvent.WINDOW_RESIZED, (event: { windowLabel: string; payload: any }) => {
-                if (event.windowLabel === appWindow.label) {
-                    localStorage.setItem('_size', JSON.stringify(event.payload))
-                }
+        appWindow
+            .onResized((event) => {
+                localStorage.setItem(sizeKey, JSON.stringify(event.payload))
             })
             .then((unListen) => {
                 unListenResize = unListen

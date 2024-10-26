@@ -87,7 +87,7 @@ What began as a translation tool has now evolved to include surprisingly effecti
 
 ### Install Manually
 
-1. Download the installation package ending in `.msi` from the [Latest Release](https://github.com/yetone/openai-translator/releases/latest) page.
+1. Download the installation package ending in `.exe` from the [Latest Release](https://github.com/yetone/openai-translator/releases/latest) page.
 2. Double click the downloaded file to install it.
 3. If prompted as unsafe, you can click on `More Info` -> `Run Anyway` to proceed with the installation.
 4. Ready to use!
@@ -159,12 +159,12 @@ For details, see [Desktop Clip Extension](./CLIP-EXTENSIONS.md)
 
 ```ts
 const API_URL = `https://${resourceName}.openai.azure.com`
-const API_URL_PATH = `/openai/deployments/${deployName}/completions?api-version=${apiVersion}`
+const API_URL_PATH = `/openai/deployments/${deployName}/chat/completions?api-version=${apiVersion}`
 ```
 
 - resourceName: Your Azure OpenAI Service resource name.
 - deployName: Your Azure OpenAI Service model deploy name, you can change your model here.
-- api-version: 2023-05-15, or newer.
+- api-version: 2023-05-15, or newer. (supported api-version can be found at [Azure's official doc](https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#completions))
 
 # License
 

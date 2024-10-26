@@ -12,7 +12,6 @@ export interface IMessage {
 export interface IMessageRequest {
     rolePrompt: string
     commandPrompt: string
-    assistantPrompts?: string[]
     onMessage: (message: { content: string; role: string; isFullText?: boolean }) => Promise<void>
     onError: (error: string) => void
     onFinished: (reason: string) => void
@@ -21,6 +20,10 @@ export interface IMessageRequest {
 }
 
 export interface IEngine {
+    checkLogin: () => Promise<boolean>
+    isLocal(): boolean
+    supportCustomModel(): boolean
+    getModel(): Promise<string>
     listModels(apiKey: string | undefined): Promise<IModel[]>
     sendMessage(req: IMessageRequest): Promise<void>
 }

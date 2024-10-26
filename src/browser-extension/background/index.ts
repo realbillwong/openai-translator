@@ -5,6 +5,10 @@ import { BackgroundFetchRequestMessage, BackgroundFetchResponseMessage } from '.
 import { vocabularyInternalService } from '../../common/internal-services/vocabulary'
 import { actionInternalService } from '../../common/internal-services/action'
 import { optionsPageHeaderPromotionIDKey, optionsPageOpenaiAPIKeyPromotionIDKey } from '../common'
+import { chatgptArkoseReqParams } from '@/common/constants'
+import { keyChatgptArkoseReqForm, keyChatgptArkoseReqUrl } from '@/common/engines/chatgpt'
+import { keyKimiAccessToken } from '@/common/engines/kimi'
+import { keyChatGLMAccessToken } from '@/common/engines/chatglm'
 
 browser.action.onClicked.addListener(async function () {
     chrome.tabs.create({
@@ -169,3 +173,80 @@ browser.commands.onCommand.addListener(async (command) => {
         }
     }
 })
+
+try {
+    browser.webRequest.onBeforeRequest.addListener(
+        (details) => {
+            if (details.url.includes('/public_key') && !details.url.includes(chatgptArkoseReqParams)) {
+                if (!details.requestBody) {
+                    return
+                }
+                const formData = new URLSearchParams()
+                for (const k in details.requestBody.formData) {
+                    formData.append(k, details.requestBody.formData[k])
+                }
+                browser.storage.local
+                    .set({
+                        [keyChatgptArkoseReqUrl]: details.url,
+                        [keyChatgptArkoseReqForm]:
+                            formData.toString() ||
+                            new TextDecoder('utf-8').decode(new Uint8Array(details.requestBody.raw?.[0].bytes)),
+                    })
+                    .then(() => {
+                        console.log('Arkose req url and form saved')
+                    })
+            }
+        },
+        {
+            urls: ['https://*.openai.com/*'],
+            types: ['xmlhttprequest'],
+        },
+        ['requestBody']
+    )
+
+    browser.webRequest.onBeforeSendHeaders.addListener(
+        (details) => {
+            if (details.url.includes('/api/user')) {
+                const headers = details.requestHeaders || []
+                const authorization = headers.find((h) => h.name === 'Authorization')?.value || ''
+                const accessToken = authorization.split(' ')[1]
+                browser.storage.local
+                    .set({
+                        [keyKimiAccessToken]: accessToken,
+                    })
+                    .then(() => {
+                        console.log('Kimi access_token saved')
+                    })
+            }
+        },
+        {
+            urls: ['https://*.moonshot.cn/*'],
+            types: ['xmlhttprequest'],
+        },
+        ['requestHeaders']
+    )
+
+    browser.webRequest.onBeforeSendHeaders.addListener(
+        (details) => {
+            if (details.url.includes('/chatglm/user-api/user/info')) {
+                const headers = details.requestHeaders || []
+                const authorization = headers.find((h) => h.name === 'Authorization')?.value || ''
+                const accessToken = authorization.split(' ')[1]
+                browser.storage.local
+                    .set({
+                        [keyChatGLMAccessToken]: accessToken,
+                    })
+                    .then(() => {
+                        console.log('Kimi access_token saved')
+                    })
+            }
+        },
+        {
+            urls: ['https://*.chatglm.cn/*'],
+            types: ['xmlhttprequest'],
+        },
+        ['requestHeaders']
+    )
+} catch (error) {
+    console.error('Error adding webRequest listener', error)
+}

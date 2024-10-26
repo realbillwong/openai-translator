@@ -1,25 +1,74 @@
 /* eslint-disable camelcase */
-import { fetchSSE, getUserInfo } from '../utils'
-import { IEngine, IMessageRequest, IModel } from './interfaces'
+import { fetchSSE, getUserInfo, getSettings } from '../utils'
+import { urlJoin } from 'url-join-ts'
+import { getUniversalFetch } from '../universal-fetch'
+import { AbstractEngine } from './abstract-engine'
+import { IMessageRequest, IModel } from './interfaces'
 
-export abstract class AbstractOpenAI implements IEngine {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    async listModels(apiKey_: string | undefined): Promise<IModel[]> {
-        return [
-            { name: 'gpt-3.5-turbo-1106', id: 'gpt-3.5-turbo-1106' },
-            { name: 'gpt-3.5-turbo', id: 'gpt-3.5-turbo' },
-            { name: 'gpt-3.5-turbo-0613', id: 'gpt-3.5-turbo-0613' },
-            { name: 'gpt-3.5-turbo-0301', id: 'gpt-3.5-turbo-0301' },
-            { name: 'gpt-3.5-turbo-16k', id: 'gpt-3.5-turbo-16k' },
-            { name: 'gpt-3.5-turbo-16k-0613', id: 'gpt-3.5-turbo-16k-0613' },
-            { name: 'gpt-4', id: 'gpt-4' },
-            { name: 'gpt-4-1106-preview (recommended)', id: 'gpt-4-1106-preview' },
-            { name: 'gpt-4-0314', id: 'gpt-4-0314' },
-            { name: 'gpt-4-0613', id: 'gpt-4-0613' },
-            { name: 'gpt-4-32k', id: 'gpt-4-32k' },
-            { name: 'gpt-4-32k-0314', id: 'gpt-4-32k-0314' },
-            { name: 'gpt-4-32k-0613', id: 'gpt-4-32k-0613' },
-        ]
+export abstract class AbstractOpenAI extends AbstractEngine {
+    async listModels(apiKey: string | undefined): Promise<IModel[]> {
+        if (!apiKey) {
+            return []
+        }
+        const settings = await getSettings()
+        if (settings.noModelsAPISupport) {
+            return [
+                { name: 'gpt-3.5-turbo-1106', id: 'gpt-3.5-turbo-1106' },
+                { name: 'gpt-3.5-turbo', id: 'gpt-3.5-turbo' },
+                { name: 'gpt-3.5-turbo-0613', id: 'gpt-3.5-turbo-0613' },
+                { name: 'gpt-3.5-turbo-0301', id: 'gpt-3.5-turbo-0301' },
+                { name: 'gpt-3.5-turbo-16k', id: 'gpt-3.5-turbo-16k' },
+                { name: 'gpt-3.5-turbo-16k-0613', id: 'gpt-3.5-turbo-16k-0613' },
+                { name: 'gpt-4', id: 'gpt-4' },
+                { name: 'gpt-4o (recommended)', id: 'gpt-4o' },
+                { name: 'gpt-4-turbo', id: 'gpt-4-turbo' },
+                { name: 'gpt-4-turbo-2024-04-09', id: 'gpt-4-turbo-2024-04-09' },
+                { name: 'gpt-4-turbo-preview', id: 'gpt-4-turbo-preview' },
+                { name: 'gpt-4-0125-preview ', id: 'gpt-4-0125-preview' },
+                { name: 'gpt-4-1106-preview', id: 'gpt-4-1106-preview' },
+                { name: 'gpt-4-0314', id: 'gpt-4-0314' },
+                { name: 'gpt-4-0613', id: 'gpt-4-0613' },
+                { name: 'gpt-4-32k', id: 'gpt-4-32k' },
+                { name: 'gpt-4-32k-0314', id: 'gpt-4-32k-0314' },
+                { name: 'gpt-4-32k-0613', id: 'gpt-4-32k-0613' },
+            ]
+        }
+        const apiKey_ = apiKey.split(',')[0]
+        const apiUrl = await this.getAPIURL()
+        const url = urlJoin(apiUrl, '/v1/models')
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey_}`,
+        }
+        const fetcher = getUniversalFetch()
+        const resp = await fetcher(url, {
+            method: 'GET',
+            headers,
+        })
+        const data = await resp.json()
+        return (
+            data.data
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                .filter((model: any) => {
+                    if (apiUrl === 'https://api.openai.com') {
+                        return model.id.includes('gpt')
+                    }
+                    return ['text-', 'dall-', 'tts-', 'winsper-', 'davinci', 'babbage'].every(
+                        (it) => !(model.id as string).startsWith(it)
+                    )
+                })
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                .map((model: any) => {
+                    return {
+                        id: model.id,
+                        name: model.id,
+                    }
+                })
+        )
+    }
+
+    async getModel() {
+        return await this.getAPIModel()
     }
 
     abstract getAPIModel(): Promise<string>
@@ -42,45 +91,41 @@ export abstract class AbstractOpenAI implements IEngine {
         return true
     }
 
-    async sendMessage(req: IMessageRequest): Promise<void> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async getBaseRequestBody(): Promise<Record<string, any>> {
         const model = await this.getAPIModel()
-        // const url = `${await this.getAPIURL()}${await this.getAPIURLPath()}`
-        const url = 'https://gptedit.ai233.com/v1/chat/completions'
-        const headers = await this.getHeaders()
-        const isChatAPI = await this.isChatAPI()
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const body: Record<string, any> = {
+        return {
             model,
             temperature: 0,
-            max_tokens: 1000,
             top_p: 1,
             frequency_penalty: 1,
             presence_penalty: 1,
             stream: true,
         }
+    }
+
+    async sendMessage(req: IMessageRequest): Promise<void> {
+        const url = urlJoin(await this.getAPIURL(), await this.getAPIURLPath())
+        const headers = await this.getHeaders()
+        const isChatAPI = await this.isChatAPI()
+        const body = await this.getBaseRequestBody()
         if (!isChatAPI) {
             // Azure OpenAI Service supports multiple API.
             // We should check if the settings.apiURLPath is match `/deployments/{deployment-id}/chat/completions`.
             // If not, we should use the legacy parameters.
-            body[
-                'prompt'
-            ] = `<|im_start|>system\n${req.rolePrompt}\n<|im_end|>\n<|im_start|>user\n${req.commandPrompt}\n<|im_end|>\n<|im_start|>assistant\n`
+            if (req.rolePrompt) {
+                body[
+                    'prompt'
+                ] = `<|im_start|>user\n${req.rolePrompt}\n\n${req.commandPrompt}\n<|im_end|>\n<|im_start|>assistant\n`
+            } else {
+                body['prompt'] = `<|im_start|>user\n${req.commandPrompt}\n<|im_end|>\n<|im_start|>assistant\n`
+            }
             body['stop'] = ['<|im_end|>']
         } else {
             const messages = [
                 {
-                    role: 'system',
-                    content: req.rolePrompt,
-                },
-                ...(req.assistantPrompts?.map((prompt) => {
-                    return {
-                        role: 'user',
-                        content: prompt,
-                    }
-                }) ?? []),
-                {
                     role: 'user',
-                    content: req.commandPrompt,
+                    content: req.rolePrompt ? req.rolePrompt + '\n\n' + req.commandPrompt : req.commandPrompt,
                 },
             ]
             body['messages'] = messages
@@ -106,6 +151,12 @@ export abstract class AbstractOpenAI implements IEngine {
                     req.onFinished('stop')
                     finished = true
                     return
+                }
+
+                const { x_groq } = resp
+
+                if (x_groq && x_groq.error) {
+                    req.onError?.(x_groq.error)
                 }
 
                 const { choices } = resp

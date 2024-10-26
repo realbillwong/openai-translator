@@ -16,7 +16,7 @@ import { clsx } from 'clsx'
 import { Button } from 'baseui-sd/button'
 import { ErrorBoundary } from 'react-error-boundary'
 import { ErrorFallback } from '../components/ErrorFallback'
-import { isDesktopApp, isTauri } from '../utils'
+import { isDesktopApp, isTauri, isMacOS } from '../utils'
 import { InnerSettings } from './Settings'
 import { containerID, popupCardInnerContainerId } from '../../browser-extension/content_script/consts'
 import { HighlightInTextarea } from '../highlight-in-textarea'
@@ -42,8 +42,11 @@ import { getCurrent } from '@tauri-apps/api/window'
 import { useDeepCompareCallback } from 'use-deep-compare'
 import { useTranslatorStore } from '../store'
 import useSWR from 'swr'
+import { useAtom } from 'jotai'
 import { IPromotionResponse, fetchPromotions, choicePromotionItem, IPromotionItem } from '../services/promotion'
 import { SpeakerIcon } from './SpeakerIcon'
+import { Provider, getEngine } from '../engines'
+import { showSettingsAtom } from '../store/setting'
 
 const cache = new LRUCache({
     max: 500,
@@ -79,14 +82,12 @@ const useStyles = createUseStyles({
         position: 'fixed',
         width: '100%',
         height: '42px',
-        cursor: 'pointer',
         left: '0',
         bottom: '0',
         paddingLeft: '6px',
         display: 'flex',
         alignItems: 'center',
         gap: '10px',
-        background: props.themeType === 'dark' ? 'rgba(31, 31, 31, 0.5)' : 'rgba(255, 255, 255, 0.5)',
         backdropFilter: 'blur(10px)',
     }),
     'poweredBy': (props: IThemedStyleProps) => ({
@@ -113,7 +114,7 @@ const useStyles = createUseStyles({
                   'top': 0,
                   'width': '100%',
                   'boxSizing': 'border-box',
-                  'padding': '30px 16px 8px',
+                  'padding': isMacOS ? '30px 16px 8px' : '8px 16px',
                   'background': props.themeType === 'dark' ? 'rgba(31, 31, 31, 0.5)' : 'rgba(255, 255, 255, 0.5)',
                   'display': 'flex',
                   'flexDirection': 'row',
@@ -255,7 +256,6 @@ const useStyles = createUseStyles({
         },
     },
     'popupCardTranslatedContentContainer': (props: IThemedStyleProps) => ({
-        'fontSize': '15px',
         'marginTop': '-14px',
         'display': 'flex',
         'overflowY': 'auto',
@@ -363,6 +363,18 @@ const useStyles = createUseStyles({
     'flexPlaceHolder': {
         marginRight: 'auto',
     },
+    'popupCardContentContainerBackgroundBlur': {
+        'height': '100vh',
+        'boxSizing': 'border-box',
+        'overflow': 'auto',
+        'paddingTop': isMacOS ? '82px !important' : '58px !important',
+        'paddingBottom': '42px',
+        'scrollbarWidth': 'none',
+        '&::-webkit-scrollbar': {
+            display: 'none',
+        },
+        'mask': 'linear-gradient(180deg, #0000 58px, #000f 72px, #000f calc(100% - 60px), #0000 calc(100% - 40px));',
+    },
 })
 
 interface IActionStrItem {
@@ -440,11 +452,11 @@ export function Translator(props: ITranslatorProps) {
 }
 
 function InnerTranslator(props: IInnerTranslatorProps) {
-    const [showSettings, setShowSettings] = useState(false)
+    const [showSettings, setShowSettings] = useAtom(showSettingsAtom)
 
     useEffect(() => {
         setShowSettings(props.showSettings ?? false)
-    }, [props.showSettings, props.uuid])
+    }, [props.showSettings, props.uuid, setShowSettings])
 
     const { onSettingsShow } = props
 
@@ -465,6 +477,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     const highlightRef = useRef<HighlightInTextarea | null>(null)
     const { t, i18n } = useTranslation()
     const { settings } = useSettings()
+
     useEffect(() => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         if (settings?.i18n !== (i18n as any).language) {
@@ -472,6 +485,22 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             ;(i18n as any).changeLanguage(settings?.i18n)
         }
     }, [i18n, settings.i18n])
+
+    useEffect(() => {
+        if (!settings) {
+            return
+        }
+        const engine = getEngine(settings.provider)
+        engine.getModel().then((model) => {
+            setTranslateDeps((prev) => {
+                return {
+                    ...prev,
+                    provider: settings.provider,
+                    engineModel: model,
+                }
+            })
+        })
+    }, [settings])
 
     const [autoFocus, setAutoFocus] = useState(false)
 
@@ -539,7 +568,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             }
             setActivateAction(action)
         }
-    }, [settings?.defaultTranslateMode])
+    }, [settings.defaultTranslateMode])
 
     const headerRef = useRef<HTMLDivElement>(null)
     const { width: headerWidth = 0 } = useResizeObserver<HTMLDivElement>({ ref: headerRef })
@@ -599,6 +628,20 @@ function InnerTranslator(props: IInnerTranslatorProps) {
     }, [hasActivateAction, headerWidth, languagesSelectorWidth, headerActionButtonsWidth, showLogo])
 
     const actions = useLiveQuery(() => actionService.list(), [refreshActionsFlag])
+
+    useEffect(() => {
+        if (!activateAction) {
+            return
+        }
+        if (!actions) {
+            return
+        }
+        setActivateAction(
+            actions.find((action) =>
+                action.id !== undefined ? action.id === activateAction.id : action.mode === activateAction.mode
+            )
+        )
+    }, [actions, activateAction])
 
     const [displayedActions, setDisplayedActions] = useState<Action[]>([])
 
@@ -675,11 +718,15 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         targetLang?: LangCode
         text: string
         action?: Action
+        provider?: Provider
+        engineModel?: string
     }>({
         sourceLang: undefined,
         targetLang: undefined,
         text: '',
         action: undefined,
+        provider: undefined,
+        engineModel: undefined,
     })
 
     const getTranslateDeps = useCallback(
@@ -872,7 +919,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             }
             const afterTranslate = (reason: string) => {
                 stopLoading()
-                if (reason !== 'stop') {
+                if (reason !== 'stop' && reason !== 'eos' && reason !== 'end_turn') {
                     if (reason === 'length' || reason === 'max_tokens') {
                         toast(t('Chars Limited'), {
                             duration: 5000,
@@ -897,9 +944,9 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 }
             }
             beforeTranslate()
-            const cachedKey = `translate:${settings?.provider ?? ''}:${settings?.apiModel ?? ''}:${action.id}:${
-                action.rolePrompt
-            }:${action.commandPrompt}:${
+            const cachedKey = `translate:${translateDeps.provider ?? ''}:${translateDeps.engineModel ?? ''}:${
+                action.id
+            }:${action.rolePrompt}:${action.commandPrompt}:${
                 action.outputRenderingFormat
             }:${sourceLang}:${targetLang}:${text}:${selectedWord}:${translationFlag}`
             const cachedValue = cache.get(cachedKey)
@@ -969,7 +1016,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                 // }
             }
         },
-        [translateDeps, settings?.provider, settings?.apiModel, translationFlag, startLoading, stopLoading, t]
+        [translateDeps, translationFlag, startLoading, stopLoading, t]
     )
 
     const translateControllerRef = useRef<AbortController | null>(null)
@@ -1009,7 +1056,11 @@ function InnerTranslator(props: IInnerTranslatorProps) {
             setShowSettings(true)
             return
         }
-    }, [props.defaultShowSettings, settings])
+        if (settings.provider === 'Groq' && !settings.groqAPIKey) {
+            setShowSettings(true)
+            return
+        }
+    }, [props.defaultShowSettings, setShowSettings, settings])
 
     const editableTextSpeakingIconRef = useRef<HTMLDivElement>(null)
 
@@ -1019,7 +1070,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         }
         console.debug('speak selected word', selectedWord)
         editableTextSpeakingIconRef.current?.click()
-    }, [selectedWord, settings?.readSelectedWordsFromInputElementsText])
+    }, [selectedWord, settings.readSelectedWordsFromInputElementsText])
 
     const handleStopGenerating = () => {
         console.log('stop gene')
@@ -1174,6 +1225,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                         style={{
                             cursor: isDesktopApp() ? 'default' : showLogo ? 'move' : 'default',
                             boxShadow: isDesktopApp() && !isScrolledToTop ? theme.lighting.shadow600 : undefined,
+                            background: settings.enableBackgroundBlur ? 'transparent' : '',
                         }}
                     >
                         {/* {showLogo && <LogoWithText ref={logoWithTextRef} />} */}
@@ -1198,6 +1250,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                         setTranslateDeps((v) => {
                                             return {
                                                 ...v,
+                                                text: editableText,
                                                 sourceLang: langId as LangCode,
                                             }
                                         })
@@ -1245,6 +1298,7 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                         setTranslateDeps((v) => {
                                             return {
                                                 ...v,
+                                                text: editableText,
                                                 targetLang: langId as LangCode,
                                             }
                                         })
@@ -1449,6 +1503,13 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                                                 className={styles.actionButton}
                                                 onClick={() => {
                                                     setEditableText('')
+                                                    setTranslatedText('')
+                                                    setTranslateDeps((v) => {
+                                                        return {
+                                                            ...v,
+                                                            text: '',
+                                                        }
+                                                    })
                                                     editorRef.current?.focus()
                                                 }}
                                             >

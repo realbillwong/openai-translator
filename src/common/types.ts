@@ -48,6 +48,8 @@ export interface IThemedStyleProps {
 
 export type LanguageDetectionEngine = 'google' | 'baidu' | 'bing' | 'local'
 
+export type ProxyProtocol = 'HTTP' | 'HTTPS'
+
 export interface ISettings {
     automaticCheckForUpdates: boolean
     apiKeys: string
@@ -60,12 +62,19 @@ export interface ISettings {
     azureAPIURL: string
     azureAPIURLPath: string
     azureAPIModel: string
+    azMaxWords: number
+    enableBackgroundBlur: boolean
+    enableMica: boolean // deprecated, please use enableBackgroundBlur
     miniMaxGroupID: string
     miniMaxAPIKey: string
+    miniMaxAPIModel: string
+    geminiAPIURL: string
     geminiAPIKey: string
     geminiAPIModel: string
     moonshotAPIKey: string
     moonshotAPIModel: string
+    deepSeekAPIKey: string
+    deepSeekAPIModel: string
     autoTranslate: boolean
     defaultTranslateMode: Exclude<TranslateMode, 'big-bang'> | 'nop'
     defaultTargetLanguage: string
@@ -98,6 +107,42 @@ export interface ISettings {
     hideTheIconInTheDock?: boolean
     languageDetectionEngine?: LanguageDetectionEngine
     autoHideWindowWhenOutOfFocus?: boolean
+    proxy?: {
+        enabled?: boolean
+        protocol?: ProxyProtocol
+        server?: string
+        port?: string
+        basicAuth?: {
+            username?: string
+            password?: string
+        }
+        noProxy?: string
+    }
+    customModelName?: string
+    ollamaAPIURL: string
+    ollamaAPIModel: string
+    ollamaCustomModelName: string
+    ollamaModelLifetimeInMemory: string
+    groqAPIURL: string
+    groqAPIURLPath: string
+    groqAPIModel: string
+    groqAPIKey: string
+    groqCustomModelName: string
+    claudeAPIURL: string
+    claudeAPIURLPath: string
+    claudeAPIModel: string
+    claudeAPIKey: string
+    claudeCustomModelName: string
+    kimiAccessToken: string
+    kimiRefreshToken: string
+    chatglmAccessToken: string
+    chatglmRefreshToken: string
+    cohereAPIKey: string
+    cohereAPIModel: string
+    fontSize: number
+    uiFontSize: number
+    iconSize: number
+    noModelsAPISupport: boolean
 }
 
 export interface IUserInfo {

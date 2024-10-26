@@ -2,9 +2,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { Translator } from '../../common/components/Translator'
 import { Client as Styletron } from 'styletron-engine-atomic'
 import { listen, Event } from '@tauri-apps/api/event'
-import { invoke } from '@tauri-apps/api/primitives'
-import { bindDisplayWindowHotkey, bindHotkey, bindOCRHotkey, bindWritingHotkey } from '../utils'
-import { useMemoWindow } from '../../common/hooks/useMemoWindow'
+import { bindDisplayWindowHotkey, bindHotkey, bindOCRHotkey, bindWritingHotkey, onSettingsSave } from '../utils'
 import { v4 as uuidv4 } from 'uuid'
 import { PREFIX } from '../../common/constants'
 import { translate } from '../../common/translate'
@@ -13,8 +11,11 @@ import { useSettings } from '../../common/hooks/useSettings'
 import { setupAnalysis } from '../../common/analysis'
 import { Window } from '../components/Window'
 import { setExternalOriginalText } from '../../common/store'
-import { getCurrent } from '@tauri-apps/api/window'
+import { getCurrent } from '@tauri-apps/api/webviewWindow'
 import { usePinned } from '../../common/hooks/usePinned'
+import { useMemoWindow } from '../../common/hooks/useMemoWindow'
+import { isMacOS } from '@/common/utils'
+import { commands } from '../bindings'
 
 const engine = new Styletron({
     prefix: `${PREFIX}-styletron-`,
@@ -46,9 +47,9 @@ export function TranslatorWindow() {
                 }
             }
             if (buffer.length > 0) {
-                invoke('write_to_input', { text: buffer.join('') }).finally(() => {
+                commands.writeToInput(buffer.join('')).finally(() => {
                     if (isFinished) {
-                        invoke('finish_writing').finally(() => {
+                        commands.finishWriting().finally(() => {
                             isWriting.current = false
                             writing()
                         })
@@ -58,7 +59,7 @@ export function TranslatorWindow() {
                     }
                 })
             } else if (isFinished) {
-                invoke('finish_writing').finally(() => {
+                commands.finishWriting().finally(() => {
                     isWriting.current = false
                     writing()
                 })
@@ -66,7 +67,9 @@ export function TranslatorWindow() {
         }
     }, [writingFlag])
 
-    useMemoWindow({ size: true, position: false })
+    const { settings } = useSettings()
+
+    useMemoWindow({ size: true, position: false, show: !settings.runAtStartup })
 
     useEffect(() => {
         setupAnalysis()
@@ -102,8 +105,6 @@ export function TranslatorWindow() {
             unlisten?.()
         }
     }, [])
-
-    const { settings } = useSettings()
 
     useEffect(() => {
         if (!settings?.writingTargetLanguage) {
@@ -152,7 +153,7 @@ export function TranslatorWindow() {
         return () => {
             unlisten?.()
         }
-    }, [settings?.writingTargetLanguage])
+    }, [settings.writingTargetLanguage])
 
     useEffect(() => {
         let unlisten
@@ -170,16 +171,28 @@ export function TranslatorWindow() {
     useEffect(() => {
         const appWindow = getCurrent()
         let unlisten: (() => void) | undefined = undefined
+        let timer: number | undefined = undefined
         appWindow
             .onFocusChanged(({ payload: focused }) => {
-                if (!pinned && !focused && settings.autoHideWindowWhenOutOfFocus) {
-                    invoke('hide_translator_window')
+                if (!pinned && settings.autoHideWindowWhenOutOfFocus) {
+                    if (timer) {
+                        clearTimeout(timer)
+                    }
+                    if (focused) {
+                        return
+                    }
+                    timer = window.setTimeout(() => {
+                        commands.hideTranslatorWindow()
+                    }, 50)
                 }
             })
             .then((cb) => {
                 unlisten = cb
             })
         return () => {
+            if (timer) {
+                clearTimeout(timer)
+            }
             unlisten?.()
         }
     }, [pinned, settings.autoHideWindowWhenOutOfFocus])
@@ -202,19 +215,14 @@ export function TranslatorWindow() {
             <Translator
                 uuid={uuid}
                 engine={engine}
+                showLogo={isMacOS}
                 showSettingsIcon
                 showSettings={showSettings}
                 autoFocus
                 defaultShowSettings
                 editorRows={10}
-                containerStyle={{ paddingTop: '26px' }}
-                onSettingsSave={(oldSettings) => {
-                    invoke('clear_config_cache')
-                    bindHotkey(oldSettings.hotkey)
-                    bindDisplayWindowHotkey(oldSettings.displayWindowHotkey)
-                    bindOCRHotkey(oldSettings.ocrHotkey)
-                    bindWritingHotkey(oldSettings.writingHotkey)
-                }}
+                containerStyle={{ paddingTop: settings.enableBackgroundBlur ? '' : '26px' }}
+                onSettingsSave={onSettingsSave}
                 onSettingsShow={onSettingsShow}
             />
         </Window>
