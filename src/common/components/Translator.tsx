@@ -16,7 +16,7 @@ import { clsx } from 'clsx'
 import { Button } from 'baseui-sd/button'
 import { ErrorBoundary } from 'react-error-boundary'
 import { ErrorFallback } from '../components/ErrorFallback'
-import { isDesktopApp, isTauri, isMacOS } from '../utils'
+import { isDesktopApp, isMacOS } from '../utils'
 import { InnerSettings } from './Settings'
 import { containerID, popupCardInnerContainerId } from '../../browser-extension/content_script/consts'
 import { HighlightInTextarea } from '../highlight-in-textarea'
@@ -38,12 +38,9 @@ import _ from 'underscore'
 import { GlobalSuspense } from './GlobalSuspense'
 import { type LogoWithTextRef } from './LogoWithText'
 import Toaster from './Toaster'
-import { getCurrent } from '@tauri-apps/api/window'
 import { useDeepCompareCallback } from 'use-deep-compare'
 import { useTranslatorStore } from '../store'
-import useSWR from 'swr'
 import { useAtom } from 'jotai'
-import { IPromotionResponse, fetchPromotions, choicePromotionItem, IPromotionItem } from '../services/promotion'
 import { SpeakerIcon } from './SpeakerIcon'
 import { Provider, getEngine } from '../engines'
 import { showSettingsAtom } from '../store/setting'
@@ -1145,53 +1142,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
         [actions, activateAction, getTranslateDeps]
     )
 
-    const { data: promotions, mutate: refetchPromotions } = useSWR<IPromotionResponse>(
-        ['promotions', showSettings],
-        fetchPromotions
-    )
-
-    useEffect(() => {
-        const timer = setInterval(
-            () => {
-                refetchPromotions()
-            },
-            1000 * 60 * 10
-        )
-        return () => {
-            clearInterval(timer)
-        }
-    }, [refetchPromotions])
-
-    const [openaiAPIKeyPromotion, setOpenaiAPIKeyPromotion] = useState<IPromotionItem>()
-    const [settingsHeaderPromotion, setSettingsHeaderPromotion] = useState<IPromotionItem>()
-
-    useEffect(() => {
-        choicePromotionItem(promotions?.openai_api_key).then(setOpenaiAPIKeyPromotion)
-        choicePromotionItem(promotions?.settings_header).then(setSettingsHeaderPromotion)
-        if (!isTauri()) {
-            const timer = setInterval(() => {
-                choicePromotionItem(promotions?.openai_api_key).then(setOpenaiAPIKeyPromotion)
-                choicePromotionItem(promotions?.settings_header).then(setSettingsHeaderPromotion)
-            }, 1000 * 60)
-            return () => {
-                clearInterval(timer)
-            }
-        }
-        let unlisten: (() => void) | undefined = undefined
-        const appWindow = getCurrent()
-        appWindow
-            .listen('tauri://focus', () => {
-                choicePromotionItem(promotions?.openai_api_key).then(setOpenaiAPIKeyPromotion)
-                choicePromotionItem(promotions?.settings_header).then(setSettingsHeaderPromotion)
-            })
-            .then((cb) => {
-                unlisten = cb
-            })
-        return () => {
-            unlisten?.()
-        }
-    }, [promotions?.openai_api_key, promotions?.settings_header])
-
     return (
         <div
             className={clsx(styles.popupCard, {
@@ -1208,8 +1158,6 @@ function InnerTranslator(props: IInnerTranslatorProps) {
                     onSave={(oldSettings) => {
                         props.onSettingsSave?.(oldSettings)
                     }}
-                    headerPromotionID={settingsHeaderPromotion?.id}
-                    openaiAPIKeyPromotionID={openaiAPIKeyPromotion?.id}
                 />
             )}
             <div

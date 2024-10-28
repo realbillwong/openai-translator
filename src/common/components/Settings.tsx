@@ -25,10 +25,6 @@ import { useThemeType } from '../hooks/useThemeType'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { actionService } from '../services/action'
 import { GlobalSuspense } from './GlobalSuspense'
-import { IPromotionResponse, fetchPromotions, choicePromotionItem, IPromotionItem } from '../services/promotion'
-import useSWR from 'swr'
-import { getCurrent } from '@tauri-apps/api/window'
-import { usePromotionShowed } from '../hooks/usePromotionShowed'
 import { trackEvent } from '@aptabase/tauri'
 
 const langOptions: Value = supportedLanguages.reduce((acc, [id, label]) => {
@@ -416,40 +412,8 @@ export function Settings({ engine, ...props }: ISettingsProps) {
     )
 }
 
-export function InnerSettings({ onSave, showFooter = false, headerPromotionID }: IInnerSettingsProps) {
-    const { data: promotions, mutate: refetchPromotions } = useSWR<IPromotionResponse>('promotions', fetchPromotions)
-
-    useEffect(() => {
-        const timer = setInterval(
-            () => {
-                refetchPromotions()
-            },
-            1000 * 60 * 10
-        )
-        return () => {
-            clearInterval(timer)
-        }
-    }, [refetchPromotions])
-
+export function InnerSettings({ onSave, showFooter = false }: IInnerSettingsProps) {
     const isTauri = utils.isTauri()
-
-    useEffect(() => {
-        if (!isTauri) {
-            return undefined
-        }
-        let unlisten: (() => void) | undefined = undefined
-        const appWindow = getCurrent()
-        appWindow
-            .listen('tauri://focus', () => {
-                refetchPromotions()
-            })
-            .then((cb) => {
-                unlisten = cb
-            })
-        return () => {
-            unlisten?.()
-        }
-    }, [isTauri, refetchPromotions])
 
     useEffect(() => {
         if (!isTauri) {
@@ -587,36 +551,6 @@ export function InnerSettings({ onSave, showFooter = false, headerPromotionID }:
             observer.disconnect()
         }
     }, [showFooter])
-
-    const [headerPromotion, setHeaderPromotion] = useState<IPromotionItem>()
-
-    useEffect(() => {
-        let unlisten: (() => void) | undefined = undefined
-        if (headerPromotionID) {
-            setHeaderPromotion(promotions?.settings_header?.find((item) => item.id === headerPromotionID))
-        } else {
-            choicePromotionItem(promotions?.settings_header).then(setHeaderPromotion)
-            if (isTauri) {
-                const appWindow = getCurrent()
-                appWindow
-                    .listen('tauri://focus', () => {
-                        choicePromotionItem(promotions?.settings_header).then(setHeaderPromotion)
-                    })
-                    .then((cb) => {
-                        unlisten = cb
-                    })
-            }
-        }
-        return () => {
-            unlisten?.()
-        }
-    }, [headerPromotionID, isTauri, promotions?.settings_header])
-
-    const { setPromotionShowed: setHeaderPromotionShowed } = usePromotionShowed(headerPromotion)
-
-    useEffect(() => {
-        setHeaderPromotionShowed(true)
-    }, [setHeaderPromotionShowed])
 
     return (
         <div
