@@ -1,6 +1,6 @@
 /* eslint-disable camelcase */
 import { v4 as uuidv4 } from 'uuid'
-import { getLangConfig, getLangName, LangCode } from '../common/lang'
+import { getLangConfig, getLangName, LangCode, localDetectLang } from '../common/lang'
 import { Action } from './internal-services/db'
 import { codeBlock, oneLine, oneLineTrim } from 'common-tags'
 import { getEngine } from './engines'
@@ -256,7 +256,7 @@ export async function translate(query: TranslateQuery) {
                     请将给到的文本意译成${targetLangName}，注意要保留术语（一定要在术语前后增加半角空格)，保持原有段落格式不变，遵守原意。
                     不要遗漏任何信息，不要对内容进行解释。
                     `
-                    commandPrompt = '好的，我明白了，请给我文本内容。'
+                    commandPrompt = '请翻译下面的内容，并只返回翻译后的内容。'
                     contentPrompt = query.text
                 }
                 if (!query.writing && fromChinese) {
@@ -383,14 +383,14 @@ If you understand, say "yes", and then we will begin.`
                 rolePrompt =
                     "You are a professional text summarizer, you can only summarize the text, don't interpret it."
                 commandPrompt = oneLine`
-                Please summarize this text in the most concise language
+                Please summarize the following text in the most concise language
                 and must use ${targetLangName} language!`
                 contentPrompt = query.text
                 break
             case 'analyze':
                 rolePrompt = 'You are a professional translation engine and grammar analyzer.'
                 commandPrompt = oneLine`
-                Please translate this text to ${targetLangName}
+                Please translate the following text to ${targetLangName}
                 and explain the grammar in the original text using ${targetLangName}.`
                 contentPrompt = query.text
                 break
@@ -411,7 +411,12 @@ If you understand, say "yes", and then we will begin.`
     }
 
     if (contentPrompt) {
-        commandPrompt = `Only reply the result and nothing else. ${commandPrompt}:\n\n${contentPrompt.trimEnd()}`
+        const zhCommandPrompt = await localDetectLang(commandPrompt)
+        if (chineseLangCodes.includes(zhCommandPrompt)) {
+            commandPrompt = `${commandPrompt}\n\n${contentPrompt.trimEnd()}`
+        } else {
+            commandPrompt = `Only reply the result and nothing else. ${commandPrompt}\n\n${contentPrompt.trimEnd()}`
+        }
     }
 
     const settings = await getSettings()
